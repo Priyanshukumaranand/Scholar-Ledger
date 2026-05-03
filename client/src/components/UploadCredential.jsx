@@ -48,6 +48,7 @@ function UploadCredential() {
       const tx = await contract.issueCredential(
         studentAddress.trim(),
         cidHash,
+        ipfsCid,
         title.trim()
       );
       await tx.wait();

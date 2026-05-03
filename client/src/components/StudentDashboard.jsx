@@ -1,23 +1,20 @@
 import { useEffect, useState } from "react";
 import { getContract } from "../utils/contract";
 import { useWallet } from "../context/WalletContext";
+import CredentialCard from "./CredentialCard";
 
 function StudentDashboard() {
-  // BUG-10: single useWallet() call replaces the two separate getContract()+eth_requestAccounts
-  //         calls that previously fired on every mount
   const { account, isAdmin } = useWallet();
 
   const [credentials, setCredentials] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // BUG-03: tracks which student's credentials are currently displayed
-  //         so the revoke call always passes the correct address
+  // Tracks which student's credentials are currently displayed.
+  // Defaults to the connected wallet; admins can look up any address.
   const [viewedStudent, setViewedStudent] = useState("");
   const [studentInput, setStudentInput] = useState("");
 
-  // BUG-09: dashboard only loads once the user has actively connected —
-  //         no MetaMask popup fires on page load
   useEffect(() => {
     if (!account) return;
     setViewedStudent(account);
@@ -41,10 +38,11 @@ function StudentDashboard() {
         records.push({
           index: i,
           cidHash: cred[0],
-          title: cred[1],
-          issuedOn: new Date(Number(cred[2]) * 1000).toLocaleDateString(),
-          revoked: cred[3],
-          issuer: cred[4],
+          cid: cred[1],
+          title: cred[2],
+          issuedOn: new Date(Number(cred[3]) * 1000).toLocaleDateString(),
+          revoked: cred[4],
+          issuer: cred[5],
         });
       }
 
@@ -81,17 +79,16 @@ function StudentDashboard() {
 
   if (!account) {
     return (
-      <div style={{ marginTop: "40px" }}>
+      <div style={{ marginTop: "20px" }}>
         <p>Connect your wallet to view credentials.</p>
       </div>
     );
   }
 
   return (
-    <div style={{ marginTop: "40px" }}>
+    <div style={{ marginTop: "30px" }}>
       <h2>Credential Dashboard</h2>
 
-      {/* BUG-03: admin can look up any student's credentials by address */}
       {isAdmin && (
         <div style={{ marginBottom: "16px" }}>
           <input
@@ -129,46 +126,13 @@ function StudentDashboard() {
 
       {!loading &&
         credentials.map((cred) => (
-          <div
+          <CredentialCard
             key={cred.index}
-            style={{
-              border: "1px solid #ccc",
-              padding: "15px",
-              marginBottom: "15px",
-              borderRadius: "6px",
-              backgroundColor: cred.revoked ? "#ffe6e6" : "#e6ffe6",
-            }}
-          >
-            <h4>{cred.title}</h4>
-            <p>Issued On: {cred.issuedOn}</p>
-            <p>
-              Status: <strong>{cred.revoked ? "Revoked" : "Active"}</strong>
-            </p>
-            <p>
-              Issuer: {cred.issuer.slice(0, 6)}...{cred.issuer.slice(-4)}
-            </p>
-            <p>
-              CID Hash: {cred.cidHash.slice(0, 10)}...{cred.cidHash.slice(-6)}
-            </p>
-
-            {/* BUG-03: passes viewedStudent (the looked-up address), not the admin's own wallet */}
-            {isAdmin && !cred.revoked && (
-              <button
-                onClick={() => handleRevoke(viewedStudent, cred.index)}
-                style={{
-                  marginTop: "10px",
-                  padding: "6px 12px",
-                  backgroundColor: "#ff4d4d",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                }}
-              >
-                Revoke Credential
-              </button>
-            )}
-          </div>
+            credential={cred}
+            studentAddress={viewedStudent}
+            isAdmin={isAdmin}
+            onRevoke={handleRevoke}
+          />
         ))}
     </div>
   );

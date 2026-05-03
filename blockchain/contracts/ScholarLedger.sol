@@ -15,7 +15,8 @@ contract ScholarLedger {
     /* ========== DATA STRUCTURES ========== */
 
     struct Credential {
-        bytes32 cidHash;        // keccak256(IPFS CID)
+        bytes32 cidHash;        // keccak256(IPFS CID) — used for cryptographic verification
+        string cid;             // original IPFS CID — used for document retrieval & display
         string title;           // e.g. "BTech Semester 6"
         uint256 issuedOn;
         bool revoked;
@@ -25,7 +26,7 @@ contract ScholarLedger {
     // student address => credentials
     mapping(address => Credential[]) private studentCredentials;
 
-    // BUG-13: track issued hashes per student to prevent duplicates
+    // Track issued hashes per student to prevent duplicates
     mapping(address => mapping(bytes32 => bool)) private cidHashIssued;
 
     /* ========== EVENTS ========== */
@@ -42,7 +43,6 @@ contract ScholarLedger {
         uint256 indexed index
     );
 
-    // BUG-15: emit event on admin transfer for auditability
     event AdminTransferred(
         address indexed previousAdmin,
         address indexed newAdmin
@@ -56,7 +56,6 @@ contract ScholarLedger {
 
     /* ========== ADMIN MANAGEMENT ========== */
 
-    // BUG-15: allows transferring admin role if wallet is lost or compromised
     function transferAdmin(address newAdmin) external onlyAdmin {
         require(newAdmin != address(0), "New admin cannot be zero address");
         require(newAdmin != universityAdmin, "Already the admin");
@@ -69,15 +68,16 @@ contract ScholarLedger {
     function issueCredential(
         address student,
         bytes32 cidHash,
+        string calldata cid,
         string calldata title
     ) external onlyAdmin {
         require(student != address(0), "Invalid student address");
-        // BUG-13: prevent issuing the same document to the same student twice
         require(!cidHashIssued[student][cidHash], "Credential already issued to this student");
 
         studentCredentials[student].push(
             Credential({
                 cidHash: cidHash,
+                cid: cid,
                 title: title,
                 issuedOn: block.timestamp,
                 revoked: false,
@@ -100,7 +100,6 @@ contract ScholarLedger {
         uint256 index
     ) external onlyAdmin {
         require(index < studentCredentials[student].length, "Invalid index");
-        // BUG-14: prevent double-revocation emitting spurious events and wasting gas
         require(!studentCredentials[student][index].revoked, "Already revoked");
 
         studentCredentials[student][index].revoked = true;
@@ -126,6 +125,7 @@ contract ScholarLedger {
         view
         returns (
             bytes32 cidHash,
+            string memory cid,
             string memory title,
             uint256 issuedOn,
             bool revoked,
@@ -138,6 +138,7 @@ contract ScholarLedger {
 
         return (
             c.cidHash,
+            c.cid,
             c.title,
             c.issuedOn,
             c.revoked,

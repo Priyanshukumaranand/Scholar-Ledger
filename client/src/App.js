@@ -1,28 +1,42 @@
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { WalletProvider } from "./context/WalletContext";
-import ConnectWallet from "./components/ConnectWallet";
-import StudentDashboard from "./components/StudentDashboard";
-import UploadCredential from "./components/UploadCredential";
-import VerifyCredential from "./components/VerifyCredential";
+import Navbar from "./components/Navbar";
+import Home from "./pages/Home";
+import VerifyManual from "./pages/VerifyManual";
+import PublicVerify from "./pages/PublicVerify";
+import PublicProfile from "./pages/PublicProfile";
+import QrScanner from "./pages/QrScanner";
 
-// BUG-07: WalletProvider wraps the entire tree so all components share one wallet state
-// BUG-19: UploadCredential renders null internally when isAdmin is false,
-//         so non-admins never see the issue form
+// Routes:
+//   /                         — connected-wallet dashboard (admin + student)
+//   /verify                   — manual verification form (no wallet needed)
+//   /verify/:address/:index   — public auto-verify (no wallet needed)
+//   /profile/:address         — public student profile (no wallet needed)
+//   /scan                     — camera-based QR scanner
 function App() {
   return (
-    <WalletProvider>
-      <div style={{ padding: "40px" }}>
-        <h1>Scholar Ledger</h1>
-        <ConnectWallet />
-        <StudentDashboard />
-        <UploadCredential />
-        <hr style={{ margin: "60px 0" }} />
-        <h2>Public Credential Verification</h2>
-        <p>
-          Verify any credential using the student wallet address and IPFS CID.
-        </p>
-        <VerifyCredential />
-      </div>
-    </WalletProvider>
+    <BrowserRouter>
+      <WalletProvider>
+        <div style={{ padding: "20px 40px 60px", maxWidth: "1100px", margin: "0 auto" }}>
+          <Navbar />
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/verify" element={<VerifyManual />} />
+            <Route path="/verify/:address/:index" element={<PublicVerify />} />
+            <Route path="/profile/:address" element={<PublicProfile />} />
+            <Route path="/scan" element={<QrScanner />} />
+            <Route
+              path="*"
+              element={
+                <div style={{ textAlign: "center", padding: "60px 20px" }}>
+                  <h2>404 — Page Not Found</h2>
+                </div>
+              }
+            />
+          </Routes>
+        </div>
+      </WalletProvider>
+    </BrowserRouter>
   );
 }
 
