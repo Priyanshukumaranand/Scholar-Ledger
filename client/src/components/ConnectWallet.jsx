@@ -1,25 +1,22 @@
-import { useState } from "react";
+import { useWallet } from "../context/WalletContext";
 
+// BUG-07: reads from shared WalletContext instead of managing isolated local state
 function ConnectWallet() {
-  const [account, setAccount] = useState("");
-
-  const connectWallet = async () => {
-    if (!window.ethereum) {
-      alert("MetaMask not installed");
-      return;
-    }
-
-    const accounts = await window.ethereum.request({
-      method: "eth_requestAccounts",
-    });
-
-    setAccount(accounts[0]);
-  };
+  const { account, isAdmin, connectWallet } = useWallet();
 
   return (
-    <div>
-      <button onClick={connectWallet}>Connect Wallet</button>
-      {account && <p>Connected: {account}</p>}
+    <div style={{ marginBottom: "16px" }}>
+      <button onClick={connectWallet}>
+        {account ? "Wallet Connected" : "Connect Wallet"}
+      </button>
+      {account && (
+        <p style={{ margin: "6px 0 0" }}>
+          Connected: {account}{" "}
+          <strong style={{ color: isAdmin ? "#0066cc" : "#333" }}>
+            ({isAdmin ? "Admin" : "Student"})
+          </strong>
+        </p>
+      )}
     </div>
   );
 }

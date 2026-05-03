@@ -25,6 +25,9 @@ contract ScholarLedger {
     // student address => credentials
     mapping(address => Credential[]) private studentCredentials;
 
+    // BUG-13: track issued hashes per student to prevent duplicates
+    mapping(address => mapping(bytes32 => bool)) private cidHashIssued;
+
     /* ========== EVENTS ========== */
 
     event CredentialIssued(
@@ -39,10 +42,26 @@ contract ScholarLedger {
         uint256 indexed index
     );
 
+    // BUG-15: emit event on admin transfer for auditability
+    event AdminTransferred(
+        address indexed previousAdmin,
+        address indexed newAdmin
+    );
+
     /* ========== CONSTRUCTOR ========== */
 
     constructor() {
         universityAdmin = msg.sender;
+    }
+
+    /* ========== ADMIN MANAGEMENT ========== */
+
+    // BUG-15: allows transferring admin role if wallet is lost or compromised
+    function transferAdmin(address newAdmin) external onlyAdmin {
+        require(newAdmin != address(0), "New admin cannot be zero address");
+        require(newAdmin != universityAdmin, "Already the admin");
+        emit AdminTransferred(universityAdmin, newAdmin);
+        universityAdmin = newAdmin;
     }
 
     /* ========== ADMIN FUNCTIONS ========== */
@@ -52,6 +71,9 @@ contract ScholarLedger {
         bytes32 cidHash,
         string calldata title
     ) external onlyAdmin {
+        require(student != address(0), "Invalid student address");
+        // BUG-13: prevent issuing the same document to the same student twice
+        require(!cidHashIssued[student][cidHash], "Credential already issued to this student");
 
         studentCredentials[student].push(
             Credential({
@@ -62,6 +84,8 @@ contract ScholarLedger {
                 issuer: msg.sender
             })
         );
+
+        cidHashIssued[student][cidHash] = true;
 
         emit CredentialIssued(
             student,
@@ -75,8 +99,10 @@ contract ScholarLedger {
         address student,
         uint256 index
     ) external onlyAdmin {
-
         require(index < studentCredentials[student].length, "Invalid index");
+        // BUG-14: prevent double-revocation emitting spurious events and wasting gas
+        require(!studentCredentials[student][index].revoked, "Already revoked");
+
         studentCredentials[student][index].revoked = true;
 
         emit CredentialRevoked(student, index);
@@ -130,10 +156,7 @@ contract ScholarLedger {
         Credential[] memory creds = studentCredentials[student];
 
         for (uint256 i = 0; i < creds.length; i++) {
-            if (
-                creds[i].cidHash == cidHash &&
-                creds[i].revoked == false
-            ) {
+            if (creds[i].cidHash == cidHash && !creds[i].revoked) {
                 return true;
             }
         }
