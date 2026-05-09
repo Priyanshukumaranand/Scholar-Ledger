@@ -1,10 +1,12 @@
 import { jsPDF } from "jspdf";
 import QRCode from "qrcode";
+import { resolveIssuer, resolveStudent } from "./identity";
 
-// Generates a printable PDF for a credential with an embedded verification QR code.
-// The QR points at the public verification URL (no wallet required to verify).
-// The IPFS CID + gateway URL are also rendered so a verifier can fetch the
-// original document directly.
+/**
+ * Generates a printable credential PDF with embedded verification QR.
+ * Resolves issuer and student names so the certificate reads as a real document
+ * (e.g. "Awarded to Prince Kumar Singh by IIT Delhi") instead of bare addresses.
+ */
 export const generateCredentialPDF = async ({
   studentAddress,
   cidHash,
@@ -19,16 +21,24 @@ export const generateCredentialPDF = async ({
   const finalVerifyUrl =
     verifyUrl || `${window.location.origin}/verify/${studentAddress}/0`;
 
-  const qrDataUrl = await QRCode.toDataURL(finalVerifyUrl, {
-    errorCorrectionLevel: "M",
-    margin: 1,
-    width: 240,
-  });
+  const [issuerProfile, studentProfile, qrDataUrl] = await Promise.all([
+    resolveIssuer(issuer).catch(() => null),
+    resolveStudent(studentAddress).catch(() => null),
+    QRCode.toDataURL(finalVerifyUrl, {
+      errorCorrectionLevel: "M",
+      margin: 1,
+      width: 240,
+    }),
+  ]);
+
+  const issuerName = issuerProfile?.exists ? issuerProfile.name : null;
+  const studentName = studentProfile?.name || null;
+  const accreditations = issuerProfile?.accreditations || [];
 
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  // Decorative header
+  // Header bar
   doc.setFillColor(20, 40, 90);
   doc.rect(0, 0, pageWidth, 90, "F");
   doc.setTextColor(255, 255, 255);
@@ -41,7 +51,7 @@ export const generateCredentialPDF = async ({
     align: "center",
   });
 
-  // Body
+  // Title block
   doc.setTextColor(0, 0, 0);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
@@ -49,30 +59,65 @@ export const generateCredentialPDF = async ({
     align: "center",
   });
 
+  // "Awarded to..."
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
-  doc.text("This is to certify that the holder of wallet address", pageWidth / 2, 175, {
+  doc.text("This is to certify that", pageWidth / 2, 175, { align: "center" });
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.setTextColor(20, 40, 90);
+  doc.text(studentName || "(Unregistered profile)", pageWidth / 2, 200, {
     align: "center",
   });
+  doc.setTextColor(0, 0, 0);
 
-  doc.setFont("courier", "bold");
-  doc.setFontSize(10);
-  doc.text(studentAddress, pageWidth / 2, 195, { align: "center" });
+  doc.setFont("courier", "normal");
+  doc.setFontSize(9);
+  doc.text(studentAddress, pageWidth / 2, 218, { align: "center" });
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
-  doc.text("has been awarded the following credential:", pageWidth / 2, 220, {
+  doc.text("has been awarded the credential of", pageWidth / 2, 245, {
     align: "center",
   });
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(20);
   doc.setTextColor(20, 40, 90);
-  doc.text(title, pageWidth / 2, 260, { align: "center" });
+  doc.text(title, pageWidth / 2, 280, { align: "center" });
   doc.setTextColor(0, 0, 0);
 
+  // Issuer line
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.text("Issued by", pageWidth / 2, 312, { align: "center" });
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text(issuerName || "(Unregistered issuer)", pageWidth / 2, 332, {
+    align: "center",
+  });
+
+  doc.setFont("courier", "normal");
+  doc.setFontSize(9);
+  doc.text(issuer, pageWidth / 2, 348, { align: "center" });
+
+  if (accreditations.length > 0) {
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(10);
+    doc.setTextColor(0, 130, 0);
+    doc.text(
+      "Accredited by " + accreditations.join(", "),
+      pageWidth / 2,
+      365,
+      { align: "center" }
+    );
+    doc.setTextColor(0, 0, 0);
+  }
+
   // Metadata block
-  let cursorY = 320;
+  let cursorY = 410;
   const labelX = 70;
   const valueX = 170;
   const lineGap = 18;
@@ -83,7 +128,9 @@ export const generateCredentialPDF = async ({
     doc.text(label, labelX, cursorY);
     doc.setFont(mono ? "courier" : "helvetica", "normal");
     doc.setFontSize(smaller ? 8 : 10);
-    doc.text(value, valueX, cursorY, { maxWidth: pageWidth - valueX - 60 });
+    doc.text(String(value), valueX, cursorY, {
+      maxWidth: pageWidth - valueX - 60,
+    });
     cursorY += lineGap;
   };
 
@@ -103,25 +150,23 @@ export const generateCredentialPDF = async ({
   doc.setTextColor(0, 0, 0);
   cursorY += lineGap;
 
-  writeRow("Issuer Address:", issuer, true, true);
-
-  if (cid) {
-    writeRow("IPFS CID:", cid, true, true);
-  }
-
+  if (cid) writeRow("IPFS CID:", cid, true, true);
   writeRow("CID Hash:", cidHash, true, true);
 
   // QR section
   const qrSize = 130;
   const qrX = (pageWidth - qrSize) / 2;
-  const qrY = Math.max(cursorY + 30, 470);
+  const qrY = Math.max(cursorY + 30, 540);
   doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
-  doc.text("Scan QR or visit the link below to verify on-chain:", pageWidth / 2, qrY + qrSize + 22, {
-    align: "center",
-  });
+  doc.text(
+    "Scan QR or visit the link below to verify on-chain:",
+    pageWidth / 2,
+    qrY + qrSize + 22,
+    { align: "center" }
+  );
   doc.setFont("courier", "normal");
   doc.setFontSize(8);
   doc.text(finalVerifyUrl, pageWidth / 2, qrY + qrSize + 38, { align: "center" });
@@ -129,9 +174,12 @@ export const generateCredentialPDF = async ({
   if (ipfsUrl) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    doc.text("View document on IPFS:", pageWidth / 2, qrY + qrSize + 60, {
-      align: "center",
-    });
+    doc.text(
+      "View document on IPFS:",
+      pageWidth / 2,
+      qrY + qrSize + 60,
+      { align: "center" }
+    );
     doc.setFont("courier", "normal");
     doc.setFontSize(8);
     doc.text(ipfsUrl, pageWidth / 2, qrY + qrSize + 74, { align: "center" });
@@ -144,7 +192,7 @@ export const generateCredentialPDF = async ({
   doc.text(
     "This credential is anchored on a public blockchain. Anyone with the QR code or link above can independently verify its authenticity.",
     pageWidth / 2,
-    800,
+    810,
     { align: "center", maxWidth: pageWidth - 80 }
   );
 

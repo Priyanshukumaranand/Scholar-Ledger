@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
+import { Camera, ScanLine, ArrowRight } from "lucide-react";
+import Card, { CardHeader } from "../components/ui/Card";
+import Button from "../components/ui/Button";
+import Input from "../components/ui/Input";
+import Alert from "../components/ui/Alert";
+import useDocumentTitle from "../utils/useDocumentTitle";
 
-// Camera-based QR scanner. Decodes a Scholar Ledger verification URL and
-// redirects to the public verify page. Falls back to manual input if camera
-// access is unavailable.
 function QrScanner() {
+  useDocumentTitle("Scan QR");
   const navigate = useNavigate();
   const scannerRef = useRef(null);
   const containerId = "scholar-qr-reader";
@@ -16,9 +20,9 @@ function QrScanner() {
   const handleDecoded = (decodedText) => {
     try {
       const url = new URL(decodedText);
-      const match = url.pathname.match(/^\/verify\/([^/]+)\/([^/]+)\/?$/);
-      if (match) {
-        navigate(`/verify/${match[1]}/${match[2]}`);
+      const verifyMatch = url.pathname.match(/^\/verify\/([^/]+)\/([^/]+)\/?$/);
+      if (verifyMatch) {
+        navigate(`/verify/${verifyMatch[1]}/${verifyMatch[2]}`);
         return;
       }
       const profileMatch = url.pathname.match(/^\/profile\/([^/]+)\/?$/);
@@ -32,17 +36,13 @@ function QrScanner() {
     }
   };
 
-  // Safely tears down the scanner regardless of its current state.
-  // Without the isScanning guard, calling stop() on a not-yet-started or
-  // already-stopped scanner throws "Cannot stop, scanner is not running or paused"
-  // — this happens routinely under React StrictMode where effects run twice.
   const safeTeardown = (scanner) => {
     if (!scanner) return Promise.resolve();
     const clear = () => {
       try {
         scanner.clear();
       } catch {
-        // ignore — DOM may already be detached
+        // ignore
       }
     };
     if (scanner.isScanning) {
@@ -74,7 +74,7 @@ function QrScanner() {
             safeTeardown(scanner).finally(() => handleDecoded(decodedText));
           },
           () => {
-            // ignore per-frame decode failures
+            // ignore per-frame failures
           }
         );
       })
@@ -83,7 +83,9 @@ function QrScanner() {
       })
       .catch((err) => {
         if (!cancelled) {
-          setError("Camera access denied or unavailable. " + (err?.message || ""));
+          setError(
+            "Camera access denied or unavailable. " + (err?.message || "")
+          );
         }
       });
 
@@ -103,58 +105,47 @@ function QrScanner() {
   };
 
   return (
-    <div style={{ maxWidth: "560px", margin: "0 auto" }}>
-      <h2>Scan Credential QR Code</h2>
-      <p style={{ color: "#555" }}>
-        Point your camera at a Scholar Ledger QR code. You will be redirected to
-        the verification page automatically.
-      </p>
-
-      <div
-        id={containerId}
-        style={{
-          width: "100%",
-          minHeight: "300px",
-          background: "#000",
-          borderRadius: "8px",
-          overflow: "hidden",
-        }}
-      />
-
-      {scanning && !error && (
-        <p style={{ color: "#0a7d24", marginTop: "10px" }}>
-          📷 Scanner active — hold a QR code in front of the camera.
-        </p>
-      )}
-
-      {error && (
-        <div
-          style={{
-            marginTop: "16px",
-            padding: "14px",
-            background: "#ffe6e6",
-            border: "1px solid #b00020",
-            borderRadius: "6px",
-            color: "#b00020",
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      <hr style={{ margin: "24px 0" }} />
-
-      <h3>Or paste a verification link</h3>
-      <form onSubmit={handleManualSubmit} style={{ display: "flex", gap: "8px" }}>
-        <input
-          type="text"
-          placeholder="https://...verify/0xStudent/0"
-          value={manualUrl}
-          onChange={(e) => setManualUrl(e.target.value)}
-          style={{ flex: 1, padding: "8px" }}
+    <div className="max-w-xl mx-auto">
+      <Card>
+        <CardHeader
+          title="Scan Credential QR"
+          subtitle="Point your camera at a Scholar Ledger QR code. You'll be redirected to the verification page automatically."
         />
-        <button type="submit">Open</button>
-      </form>
+
+        <div
+          id={containerId}
+          className="w-full min-h-[300px] bg-black rounded-xl overflow-hidden ring-1 ring-ink-200 dark:ring-ink-800"
+        />
+
+        {scanning && !error && (
+          <div className="mt-3 flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+            <Camera className="h-4 w-4" />
+            Scanner active — hold a QR code in front of the camera.
+          </div>
+        )}
+
+        {error && (
+          <div className="mt-4">
+            <Alert tone="danger">{error}</Alert>
+          </div>
+        )}
+
+        <hr className="my-6 border-ink-200 dark:border-ink-800" />
+
+        <form onSubmit={handleManualSubmit} className="space-y-3">
+          <Input
+            label="Or paste a verification link"
+            placeholder="https://…/verify/0xStudent/0"
+            value={manualUrl}
+            onChange={(e) => setManualUrl(e.target.value)}
+          />
+          <Button type="submit" variant="secondary">
+            <ScanLine className="h-4 w-4" />
+            Open
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Button>
+        </form>
+      </Card>
     </div>
   );
 }

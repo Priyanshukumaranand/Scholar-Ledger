@@ -1,12 +1,36 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
+import {
+  CheckCircle2,
+  XCircle,
+  ExternalLink,
+  Loader2,
+  ArrowRight,
+} from "lucide-react";
 import { getReadOnlyContract } from "../utils/readOnlyContract";
+import { ipfsUrl, shortAddr } from "../utils/identity";
+import IssuerBadge from "../components/IssuerBadge";
+import StudentBadge from "../components/StudentBadge";
+import Card from "../components/ui/Card";
+import useDocumentTitle from "../utils/useDocumentTitle";
+import Badge from "../components/ui/Badge";
+import Alert from "../components/ui/Alert";
 
-// Public credential verification — no wallet required.
-// Reads the credential at the given (address, index) directly via JsonRpcProvider.
+function DetailRow({ label, children }) {
+  return (
+    <>
+      <dt className="text-xs font-medium uppercase tracking-wider text-ink-500 dark:text-ink-400">
+        {label}
+      </dt>
+      <dd className="text-sm text-ink-900 dark:text-ink-100">{children}</dd>
+    </>
+  );
+}
+
 function PublicVerify() {
   const { address, index } = useParams();
+  useDocumentTitle("Verify Credential");
   const [credential, setCredential] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -16,30 +40,30 @@ function PublicVerify() {
       setLoading(true);
       setError("");
       try {
-        const contract = getReadOnlyContract();
-        const count = await contract.getCredentialCount(address);
-        const total = Number(count);
+        const contract = getReadOnlyContract("scholarLedger");
+        const total = Number(await contract.getCredentialCount(address));
         const idx = Number(index);
-
         if (Number.isNaN(idx) || idx < 0 || idx >= total) {
           setError("Credential not found for this student.");
           return;
         }
-
         const cred = await contract.getCredential(address, idx);
         setCredential({
           index: idx,
           cidHash: cred[0],
           cid: cred[1],
           title: cred[2],
-          issuedOn: new Date(Number(cred[3]) * 1000).toLocaleDateString(),
+          issuedOn: new Date(Number(cred[3]) * 1000).toLocaleDateString(undefined, {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          }),
+          issuedOnRaw: Number(cred[3]),
           revoked: cred[4],
           issuer: cred[5],
         });
       } catch (err) {
-        setError(
-          err.reason || err.message || "Could not reach the network."
-        );
+        setError(err.reason || err.message || "Could not reach the network.");
       } finally {
         setLoading(false);
       }
@@ -49,185 +73,157 @@ function PublicVerify() {
 
   if (loading) {
     return (
-      <div style={{ textAlign: "center", padding: "60px 20px" }}>
-        <p>Verifying credential on-chain...</p>
+      <div className="text-center py-20">
+        <Loader2 className="h-8 w-8 mx-auto animate-spin text-brand-500" />
+        <p className="mt-4 text-sm text-ink-500 dark:text-ink-400">
+          Verifying credential on-chain…
+        </p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div
-        style={{
-          maxWidth: "600px",
-          margin: "60px auto",
-          padding: "30px",
-          background: "#ffe6e6",
-          border: "1px solid #b00020",
-          borderRadius: "8px",
-          textAlign: "center",
-        }}
-      >
-        <h2 style={{ color: "#b00020" }}>❌ Verification Failed</h2>
-        <p>{error}</p>
-        <p style={{ fontSize: "13px", color: "#555" }}>
-          Student: {address}
-          <br />
-          Index: {index}
-        </p>
+      <div className="max-w-xl mx-auto">
+        <Card>
+          <div className="text-center py-6">
+            <div className="h-14 w-14 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-4">
+              <XCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
+            </div>
+            <h2 className="text-xl font-semibold text-red-700 dark:text-red-400">
+              Verification Failed
+            </h2>
+            <p className="mt-2 text-sm text-ink-600 dark:text-ink-400">
+              {error}
+            </p>
+            <p className="mt-5 text-xs text-ink-400 font-mono break-all">
+              {address}
+              <br />#{index}
+            </p>
+          </div>
+        </Card>
       </div>
     );
   }
 
-  const isValid = credential && !credential.revoked;
-  const statusColor = isValid ? "#0a7d24" : "#b00020";
-  const statusBg = isValid ? "#e6ffe6" : "#ffe6e6";
-  const statusEmoji = isValid ? "✅" : "❌";
-  const statusText = isValid ? "VALID CREDENTIAL" : "REVOKED CREDENTIAL";
-
+  const isValid = !credential.revoked;
   const verifyUrl = window.location.href;
 
   return (
-    <div
-      style={{
-        maxWidth: "720px",
-        margin: "30px auto",
-        padding: "30px",
-        background: statusBg,
-        border: `2px solid ${statusColor}`,
-        borderRadius: "10px",
-      }}
-    >
-      <div style={{ textAlign: "center", marginBottom: "26px" }}>
-        <div style={{ fontSize: "42px", marginBottom: "8px" }}>{statusEmoji}</div>
-        <h1 style={{ color: statusColor, margin: 0 }}>{statusText}</h1>
-        <p style={{ color: "#555", marginTop: "8px" }}>
-          This credential was independently verified against the blockchain.
+    <div className="max-w-3xl mx-auto space-y-5">
+      {/* Status banner */}
+      <div
+        className={`relative overflow-hidden rounded-2xl border-2 p-7 text-center ${
+          isValid
+            ? "border-emerald-300 bg-gradient-to-br from-emerald-50 to-white dark:border-emerald-800/60 dark:from-emerald-950/30 dark:to-ink-900"
+            : "border-red-300 bg-gradient-to-br from-red-50 to-white dark:border-red-800/60 dark:from-red-950/30 dark:to-ink-900"
+        }`}
+      >
+        <div
+          className={`mx-auto h-16 w-16 rounded-full flex items-center justify-center mb-3 ${
+            isValid
+              ? "bg-emerald-100 dark:bg-emerald-900/40"
+              : "bg-red-100 dark:bg-red-900/40"
+          }`}
+        >
+          {isValid ? (
+            <CheckCircle2 className="h-9 w-9 text-emerald-600 dark:text-emerald-400" />
+          ) : (
+            <XCircle className="h-9 w-9 text-red-600 dark:text-red-400" />
+          )}
+        </div>
+        <h1
+          className={`text-2xl sm:text-3xl font-bold tracking-tight ${
+            isValid
+              ? "text-emerald-700 dark:text-emerald-300"
+              : "text-red-700 dark:text-red-300"
+          }`}
+        >
+          {isValid ? "Valid Credential" : "Revoked Credential"}
+        </h1>
+        <p className="mt-2 text-sm text-ink-600 dark:text-ink-400">
+          Independently verified against the public blockchain.
         </p>
       </div>
 
-      <div
-        style={{
-          background: "white",
-          padding: "20px",
-          borderRadius: "8px",
-          marginBottom: "20px",
-        }}
-      >
-        <h2 style={{ marginTop: 0, color: "#14285a" }}>{credential.title}</h2>
+      {/* Credential details */}
+      <Card>
+        <h2 className="text-2xl font-bold tracking-tight gradient-text">
+          {credential.title}
+        </h2>
 
-        <table style={{ width: "100%", fontSize: "14px", lineHeight: "1.8" }}>
-          <tbody>
-            <tr>
-              <td style={{ fontWeight: "bold", width: "160px", verticalAlign: "top" }}>
-                Issued To:
-              </td>
-              <td style={{ wordBreak: "break-all", fontFamily: "monospace" }}>
-                {address}
-              </td>
-            </tr>
-            <tr>
-              <td style={{ fontWeight: "bold", verticalAlign: "top" }}>
-                Issued On:
-              </td>
-              <td>{credential.issuedOn}</td>
-            </tr>
-            <tr>
-              <td style={{ fontWeight: "bold", verticalAlign: "top" }}>
-                Issuer Address:
-              </td>
-              <td style={{ wordBreak: "break-all", fontFamily: "monospace" }}>
-                {credential.issuer}
-              </td>
-            </tr>
-            <tr>
-              <td style={{ fontWeight: "bold", verticalAlign: "top" }}>
-                Status:
-              </td>
-              <td>
-                <strong style={{ color: statusColor }}>
-                  {credential.revoked ? "REVOKED" : "ACTIVE"}
-                </strong>
-              </td>
-            </tr>
-            <tr>
-              <td style={{ fontWeight: "bold", verticalAlign: "top" }}>
-                IPFS CID:
-              </td>
-              <td
-                style={{
-                  wordBreak: "break-all",
-                  fontFamily: "monospace",
-                  fontSize: "12px",
-                }}
+        <dl className="mt-6 grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-y-5 gap-x-5">
+          <DetailRow label="Issued To">
+            <StudentBadge address={address} size="lg" />
+          </DetailRow>
+
+          <DetailRow label="Issued By">
+            <IssuerBadge address={credential.issuer} size="lg" />
+          </DetailRow>
+
+          <DetailRow label="Date">{credential.issuedOn}</DetailRow>
+
+          <DetailRow label="Status">
+            <Badge tone={isValid ? "success" : "danger"}>
+              {isValid ? "ACTIVE" : "REVOKED"}
+            </Badge>
+          </DetailRow>
+
+          {credential.cid && (
+            <DetailRow label="IPFS Document">
+              <a
+                href={ipfsUrl(credential.cid)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 text-sm font-mono break-all"
               >
                 {credential.cid}
-                {credential.cid && (
-                  <>
-                    {" "}
-                    <a
-                      href={`${
-                        process.env.REACT_APP_IPFS_GATEWAY ||
-                        "https://ipfs.io/ipfs/"
-                      }${credential.cid}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ fontFamily: "sans-serif", fontSize: "12px" }}
-                    >
-                      View Document →
-                    </a>
-                  </>
-                )}
-              </td>
-            </tr>
-            <tr>
-              <td style={{ fontWeight: "bold", verticalAlign: "top" }}>
-                CID Hash:
-              </td>
-              <td
-                style={{
-                  wordBreak: "break-all",
-                  fontFamily: "monospace",
-                  fontSize: "12px",
-                }}
-              >
-                {credential.cidHash}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+                <ExternalLink className="h-3 w-3 flex-shrink-0" />
+              </a>
+            </DetailRow>
+          )}
 
-      <div
-        style={{
-          display: "flex",
-          gap: "20px",
-          alignItems: "center",
-          justifyContent: "center",
-          flexWrap: "wrap",
-          background: "white",
-          padding: "20px",
-          borderRadius: "8px",
-        }}
-      >
-        <div style={{ textAlign: "center" }}>
-          <QRCodeSVG value={verifyUrl} size={120} level="M" />
-          <p style={{ fontSize: "11px", color: "#555", marginTop: "6px" }}>
-            Share this QR
-          </p>
+          <DetailRow label="CID Hash">
+            <code className="text-xs font-mono text-ink-500 dark:text-ink-500 break-all">
+              {credential.cidHash}
+            </code>
+          </DetailRow>
+        </dl>
+      </Card>
+
+      {/* QR + share */}
+      <Card>
+        <div className="flex items-center gap-6 flex-wrap">
+          <div className="rounded-xl bg-white p-3 ring-1 ring-ink-200 dark:ring-ink-700">
+            <QRCodeSVG value={verifyUrl} size={120} level="M" />
+          </div>
+          <div className="flex-1 min-w-[220px]">
+            <h3 className="text-sm font-semibold text-ink-900 dark:text-ink-100">
+              Share this verification
+            </h3>
+            <p className="mt-1 text-xs text-ink-500 dark:text-ink-400 leading-relaxed">
+              Anyone with this QR or link can re-verify the credential without
+              installing anything or signing in.
+            </p>
+            <div className="mt-3">
+              <Link
+                to={`/profile/${address}`}
+                className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+              >
+                View {shortAddr(address)}'s full profile
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          </div>
         </div>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <p style={{ margin: "0 0 10px 0", fontSize: "13px" }}>
-            <Link to={`/profile/${address}`}>
-              View student's full credential profile →
-            </Link>
-          </p>
-          <p style={{ margin: 0, fontSize: "12px", color: "#555" }}>
-            Anyone with this link can independently verify the credential —
-            no account or wallet needed.
-          </p>
-        </div>
-      </div>
+      </Card>
+
+      {!isValid && (
+        <Alert tone="danger" title="What does revoked mean?">
+          The issuing institution has invalidated this credential. It should
+          not be considered authentic for verification purposes.
+        </Alert>
+      )}
     </div>
   );
 }

@@ -1,23 +1,16 @@
-import axios from "axios";
+import { apiFetch } from "./backend";
 
-// BUG-16: keys moved to .env — never hardcode secrets in client source
-// BUG-17: maxContentLength must be the number Infinity, not the string "Infinity"
+/**
+ * Upload a file to IPFS via the backend proxy. Pinata API keys live on the
+ * server only — they are never bundled into the client.
+ */
 export const uploadToIPFS = async (file) => {
   const formData = new FormData();
   formData.append("file", file);
-
-  const res = await axios.post(
-    "https://api.pinata.cloud/pinning/pinFileToIPFS",
-    formData,
-    {
-      maxContentLength: Infinity,
-      headers: {
-        "Content-Type": "multipart/form-data",
-        pinata_api_key: process.env.REACT_APP_PINATA_API_KEY,
-        pinata_secret_api_key: process.env.REACT_APP_PINATA_SECRET_KEY,
-      },
-    }
-  );
-
-  return res.data.IpfsHash;
+  const res = await apiFetch("/api/v1/ipfs/upload", {
+    method: "POST",
+    body: formData,
+  });
+  if (!res?.cid) throw new Error("IPFS upload failed: no CID returned");
+  return res.cid;
 };

@@ -1,29 +1,35 @@
 import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import {
+  Download,
+  Copy,
+  Check,
+  ExternalLink,
+  XCircle,
+  Calendar,
+} from "lucide-react";
 import { generateCredentialPDF } from "../utils/pdfGenerator";
+import { ipfsUrl } from "../utils/identity";
+import { useToast } from "../context/ToastContext";
+import IssuerBadge from "./IssuerBadge";
+import Button from "./ui/Button";
+import Badge from "./ui/Badge";
 
-const IPFS_GATEWAY =
-  process.env.REACT_APP_IPFS_GATEWAY || "https://ipfs.io/ipfs/";
-
-// Reusable display for a single credential.
-// - Shows full metadata including the live IPFS CID and a link to view the doc
-// - QR code encoding the public verification URL
-// - Buttons: download PDF, copy verification link, optional revoke
-function CredentialCard({ credential, studentAddress, isAdmin, onRevoke }) {
+function CredentialCard({ credential, studentAddress, canRevoke, onRevoke }) {
+  const { pushToast } = useToast();
   const [copied, setCopied] = useState("");
   const [generating, setGenerating] = useState(false);
 
   const verifyUrl = `${window.location.origin}/verify/${studentAddress}/${credential.index}`;
-  const ipfsUrl = credential.cid ? `${IPFS_GATEWAY}${credential.cid}` : null;
+  const ipfsHref = credential.cid ? ipfsUrl(credential.cid) : null;
 
-  const copyToClipboard = async (text, label) => {
+  const copy = async (text, label) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(label);
       setTimeout(() => setCopied(""), 1800);
     } catch {
-      setCopied("Copy failed");
-      setTimeout(() => setCopied(""), 1800);
+      // ignore
     }
   };
 
@@ -39,10 +45,14 @@ function CredentialCard({ credential, studentAddress, isAdmin, onRevoke }) {
         revoked: credential.revoked,
         issuer: credential.issuer,
         verifyUrl,
-        ipfsUrl,
+        ipfsUrl: ipfsHref,
       });
     } catch (err) {
-      alert("PDF generation failed: " + (err.message || "unknown error"));
+      pushToast({
+        tone: "danger",
+        title: "PDF generation failed",
+        message: err.message || "Unknown error",
+      });
     } finally {
       setGenerating(false);
     }
@@ -50,96 +60,96 @@ function CredentialCard({ credential, studentAddress, isAdmin, onRevoke }) {
 
   return (
     <div
-      style={{
-        border: "1px solid #ccc",
-        padding: "18px",
-        marginBottom: "16px",
-        borderRadius: "8px",
-        backgroundColor: credential.revoked ? "#ffe6e6" : "#e6ffe6",
-        display: "flex",
-        gap: "20px",
-        alignItems: "flex-start",
-        flexWrap: "wrap",
-      }}
+      className={`group relative overflow-hidden rounded-xl border p-5 transition-all duration-200 hover:shadow-elevated ${
+        credential.revoked
+          ? "border-red-200 bg-red-50/40 dark:border-red-900/50 dark:bg-red-950/20"
+          : "border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/50 dark:bg-emerald-950/20"
+      }`}
     >
-      <div style={{ flex: "1 1 320px", minWidth: 0 }}>
-        <h4 style={{ margin: "0 0 10px 0" }}>{credential.title}</h4>
-        <p style={{ margin: "4px 0" }}>
-          <strong>Issued On:</strong> {credential.issuedOn}
-        </p>
-        <p style={{ margin: "4px 0" }}>
-          <strong>Status:</strong>{" "}
-          <span
-            style={{
-              color: credential.revoked ? "#b00020" : "#0a7d24",
-              fontWeight: "bold",
-            }}
-          >
-            {credential.revoked ? "Revoked" : "Active"}
-          </span>
-        </p>
-        <p style={{ margin: "4px 0" }}>
-          <strong>Issuer:</strong> {credential.issuer.slice(0, 6)}...
-          {credential.issuer.slice(-4)}
-        </p>
+      {/* Subtle accent stripe on the left */}
+      <div
+        className={`absolute left-0 top-0 bottom-0 w-1 ${
+          credential.revoked ? "bg-red-400" : "bg-emerald-400"
+        }`}
+      />
 
-        {credential.cid && (
-          <p style={{ margin: "4px 0", wordBreak: "break-all", fontSize: "12px" }}>
-            <strong>IPFS CID:</strong> {credential.cid}{" "}
-            <a
-              href={ipfsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ fontSize: "12px" }}
-            >
-              View Document →
-            </a>
+      <div className="flex flex-wrap gap-5 pl-2">
+        <div className="flex-1 min-w-[260px]">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <h3 className="text-lg font-semibold tracking-tight text-ink-900 dark:text-ink-50">
+              {credential.title}
+            </h3>
+            <Badge tone={credential.revoked ? "danger" : "success"}>
+              {credential.revoked ? "Revoked" : "Active"}
+            </Badge>
+          </div>
+
+          <div className="mt-3 space-y-2.5 text-sm">
+            <div className="flex items-center gap-2 text-ink-600 dark:text-ink-400">
+              <Calendar className="h-3.5 w-3.5 text-ink-400" />
+              <span className="text-xs">Issued</span>
+              <span className="text-ink-900 dark:text-ink-100 font-medium">
+                {credential.issuedOn}
+              </span>
+            </div>
+            <div className="pt-1">
+              <IssuerBadge address={credential.issuer} />
+            </div>
+            {credential.cid && (
+              <div className="flex items-start gap-2 text-xs pt-1">
+                <span className="text-ink-500 dark:text-ink-500 mt-0.5">IPFS</span>
+                <a
+                  href={ipfsHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 break-all font-mono text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+                >
+                  {credential.cid.slice(0, 24)}…
+                  <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                </a>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button size="sm" variant="primary" onClick={downloadPDF} disabled={generating}>
+              <Download className="h-3.5 w-3.5" />
+              {generating ? "Generating…" : "Download PDF"}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => copy(verifyUrl, "verify")}>
+              {copied === "verify" ? (
+                <>
+                  <Check className="h-3.5 w-3.5" />
+                  Copied
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5" />
+                  Copy Link
+                </>
+              )}
+            </Button>
+            {canRevoke && !credential.revoked && (
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={() => onRevoke(studentAddress, credential.index)}
+              >
+                <XCircle className="h-3.5 w-3.5" />
+                Revoke
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center text-center">
+          <div className="rounded-lg bg-white p-2 ring-1 ring-ink-200 dark:ring-ink-700">
+            <QRCodeSVG value={verifyUrl} size={104} level="M" />
+          </div>
+          <p className="mt-2 text-[11px] uppercase tracking-wider text-ink-500 dark:text-ink-400">
+            Scan to verify
           </p>
-        )}
-
-        <p style={{ margin: "4px 0", wordBreak: "break-all", fontSize: "12px" }}>
-          <strong>CID Hash:</strong> {credential.cidHash}
-        </p>
-
-        <div style={{ marginTop: "14px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <button onClick={downloadPDF} disabled={generating}>
-            {generating ? "Generating..." : "Download PDF"}
-          </button>
-          <button onClick={() => copyToClipboard(verifyUrl, "verify")}>
-            {copied === "verify" ? "Copied!" : "Copy Verification Link"}
-          </button>
-          {isAdmin && !credential.revoked && (
-            <button
-              onClick={() => onRevoke(studentAddress, credential.index)}
-              style={{
-                backgroundColor: "#ff4d4d",
-                color: "white",
-                border: "none",
-                padding: "6px 12px",
-                borderRadius: "4px",
-                cursor: "pointer",
-              }}
-            >
-              Revoke
-            </button>
-          )}
         </div>
-      </div>
-
-      <div style={{ flex: "0 0 auto", textAlign: "center" }}>
-        <div
-          style={{
-            background: "white",
-            padding: "8px",
-            borderRadius: "6px",
-            border: "1px solid #ddd",
-          }}
-        >
-          <QRCodeSVG value={verifyUrl} size={110} level="M" />
-        </div>
-        <p style={{ fontSize: "11px", color: "#555", marginTop: "6px" }}>
-          Scan to verify
-        </p>
       </div>
     </div>
   );

@@ -1,14 +1,27 @@
 import { ethers } from "ethers";
 import ScholarLedger from "../abi/ScholarLedger.json";
+import IssuerRegistry from "../abi/IssuerRegistry.json";
+import StudentProfileRegistry from "../abi/StudentProfileRegistry.json";
+import AccreditationRegistry from "../abi/AccreditationRegistry.json";
 
-const CONTRACT_ADDRESS = process.env.REACT_APP_CONTRACT_ADDRESS;
 const RPC_URL = process.env.REACT_APP_RPC_URL;
 
-// Read-only contract instance — no MetaMask required.
-// Used by public verification, public profile, and the QR scan flow
-// so that anyone (including verifiers without a wallet) can read on-chain data.
+const ADDRESSES = {
+  scholarLedger: process.env.REACT_APP_CONTRACT_ADDRESS,
+  issuerRegistry: process.env.REACT_APP_ISSUER_REGISTRY_ADDRESS,
+  studentProfileRegistry: process.env.REACT_APP_STUDENT_PROFILE_REGISTRY_ADDRESS,
+  accreditationRegistry: process.env.REACT_APP_ACCREDITATION_REGISTRY_ADDRESS,
+};
+
+const ABIS = {
+  scholarLedger: ScholarLedger.abi,
+  issuerRegistry: IssuerRegistry.abi,
+  studentProfileRegistry: StudentProfileRegistry.abi,
+  accreditationRegistry: AccreditationRegistry.abi,
+};
+
 let cachedProvider = null;
-let cachedContract = null;
+const cachedContracts = {};
 
 const getProvider = () => {
   if (!cachedProvider) {
@@ -17,13 +30,13 @@ const getProvider = () => {
   return cachedProvider;
 };
 
-export const getReadOnlyContract = () => {
-  if (!cachedContract) {
-    cachedContract = new ethers.Contract(
-      CONTRACT_ADDRESS,
-      ScholarLedger.abi,
-      getProvider()
-    );
+export const getReadOnlyContract = (key = "scholarLedger") => {
+  if (cachedContracts[key]) return cachedContracts[key];
+  const address = ADDRESSES[key];
+  const abi = ABIS[key];
+  if (!address) {
+    throw new Error(`Read-only contract not configured: ${key}`);
   }
-  return cachedContract;
+  cachedContracts[key] = new ethers.Contract(address, abi, getProvider());
+  return cachedContracts[key];
 };
