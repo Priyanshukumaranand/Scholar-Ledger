@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import {
   Home as HomeIcon,
   ShieldCheck,
@@ -40,6 +40,7 @@ function Navbar() {
   const { account, canIssue, isAdmin, isAccreditationAuthority } = useWallet();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -47,6 +48,12 @@ function Navbar() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // Close mobile menu whenever the user navigates (handles browser back/forward
+  // and programmatic redirects, not just NavItem clicks).
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
 
   const close = () => setMenuOpen(false);
 

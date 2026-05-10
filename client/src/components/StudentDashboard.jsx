@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { Search, User, Loader2 } from "lucide-react";
+import { Search, User, FileText, Settings as SettingsIcon } from "lucide-react";
+import { Link } from "react-router-dom";
 import { ethers } from "ethers";
 import { getContract } from "../utils/contract";
 import { getReadOnlyContract } from "../utils/readOnlyContract";
 import { useWallet } from "../context/WalletContext";
 import { useToast } from "../context/ToastContext";
+import { humanizeError } from "../utils/errors";
 import CredentialCard from "./CredentialCard";
 import StudentBadge from "./StudentBadge";
 import Card, { CardHeader } from "./ui/Card";
@@ -12,6 +14,8 @@ import Button from "./ui/Button";
 import Input from "./ui/Input";
 import Alert from "./ui/Alert";
 import Badge from "./ui/Badge";
+import EmptyState from "./ui/EmptyState";
+import { SkeletonCard } from "./ui/Skeleton";
 
 function StudentDashboard() {
   const { account, isAdmin, canIssue } = useWallet();
@@ -31,18 +35,55 @@ function StudentDashboard() {
 
   useEffect(() => {
     if (!viewedStudent) return;
-    loadCredentials(viewedStudent);
+    let alive = true;
+    const load = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const contract = getReadOnlyContract("scholarLedger");
+        const count = Number(await contract.getCredentialCount(viewedStudent));
+        const creds = await Promise.all(
+          Array.from({ length: count }, (_, i) =>
+            contract.getCredential(viewedStudent, i)
+          )
+        );
+        if (!alive) return;
+        const records = creds.map((cred, i) => ({
+          index: i,
+          cidHash: cred[0],
+          cid: cred[1],
+          title: cred[2],
+          issuedOn: new Date(Number(cred[3]) * 1000).toLocaleDateString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          }),
+          revoked: cred[4],
+          issuer: cred[5],
+        }));
+        setCredentials(records);
+      } catch (err) {
+        if (alive) setError(humanizeError(err, "Failed to load credentials."));
+      } finally {
+        if (alive) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      alive = false;
+    };
   }, [viewedStudent]);
 
-  const loadCredentials = async (studentAddress) => {
+  const refreshCredentials = async () => {
+    if (!viewedStudent) return;
     setLoading(true);
     setError("");
     try {
       const contract = getReadOnlyContract("scholarLedger");
-      const count = Number(await contract.getCredentialCount(studentAddress));
+      const count = Number(await contract.getCredentialCount(viewedStudent));
       const creds = await Promise.all(
         Array.from({ length: count }, (_, i) =>
-          contract.getCredential(studentAddress, i)
+          contract.getCredential(viewedStudent, i)
         )
       );
       const records = creds.map((cred, i) => ({
@@ -60,7 +101,7 @@ function StudentDashboard() {
       }));
       setCredentials(records);
     } catch (err) {
-      setError(err.reason || err.message || "Failed to load credentials.");
+      setError(humanizeError(err, "Failed to load credentials."));
     } finally {
       setLoading(false);
     }
@@ -92,12 +133,12 @@ function StudentDashboard() {
         title: "Credential revoked",
         message: `Credential #${index} marked revoked on-chain.`,
       });
-      loadCredentials(studentAddress);
+      refreshCredentials();
     } catch (err) {
       pushToast({
         tone: "danger",
         title: "Revoke failed",
-        message: err.reason || err.message || "Transaction failed.",
+        message: humanizeError(err),
       });
     }
   };
@@ -164,15 +205,33 @@ function StudentDashboard() {
       )}
 
       {loading && (
-        <div className="flex items-center gap-2 text-sm text-ink-500 dark:text-ink-400">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading credentials…
+        <div className="space-y-4">
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
       )}
       {error && <Alert tone="danger">{error}</Alert>}
 
       {!loading && !error && credentials.length === 0 && (
-        <Alert tone="info">No credentials issued to this address yet.</Alert>
+        <EmptyState
+          icon={FileText}
+          title={isMine ? "No credentials yet" : "Nothing here"}
+          description={
+            isMine
+              ? "Once your institution issues a credential to your wallet, it will appear here. In the meantime, set up your profile so it looks polished when one arrives."
+              : "This wallet hasn't received any credentials yet."
+          }
+          action={
+            isMine ? (
+              <Link to="/profile-settings">
+                <Button variant="secondary" size="sm">
+                  <SettingsIcon className="h-3.5 w-3.5" />
+                  Set up profile
+                </Button>
+              </Link>
+            ) : null
+          }
+        />
       )}
 
       <div className="space-y-4 mt-4">

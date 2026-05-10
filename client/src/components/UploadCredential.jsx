@@ -1,32 +1,45 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ethers } from "ethers";
 import { FilePlus, Send, FileText } from "lucide-react";
 import { uploadToIPFS } from "../utils/ipfs";
 import { getContract } from "../utils/contract";
 import { useWallet } from "../context/WalletContext";
 import { useToast } from "../context/ToastContext";
+import { humanizeError } from "../utils/errors";
+import useFormDraft from "../utils/useFormDraft";
 import Card, { CardHeader } from "./ui/Card";
 import Button from "./ui/Button";
 import Input from "./ui/Input";
 import Alert from "./ui/Alert";
 
+const DRAFT_BLANK = { studentAddress: "", title: "" };
+
 function UploadCredential() {
-  const { canIssue } = useWallet();
+  const { canIssue, account } = useWallet();
   const { pushToast } = useToast();
-  const [studentAddress, setStudentAddress] = useState("");
-  const [title, setTitle] = useState("");
+  const [draft, setDraft, clearDraft] = useFormDraft(
+    `upload-credential:${account || "anon"}`,
+    DRAFT_BLANK
+  );
   const [file, setFile] = useState(null);
   const [cid, setCid] = useState("");
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const fileInputRef = useRef(null);
 
   if (!canIssue) return null;
 
+  const studentAddress = draft.studentAddress;
+  const title = draft.title;
+  const setStudentAddress = (v) => setDraft((d) => ({ ...d, studentAddress: v }));
+  const setTitle = (v) => setDraft((d) => ({ ...d, title: v }));
+
   const reset = () => {
-    setStudentAddress("");
-    setTitle("");
+    setDraft(DRAFT_BLANK);
+    clearDraft();
     setFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleSubmit = async (e) => {
@@ -72,7 +85,7 @@ function UploadCredential() {
       });
     } catch (err) {
       setStatus("");
-      setError(err.reason || err.message || "Transaction failed.");
+      setError(humanizeError(err));
     } finally {
       setBusy(false);
     }
@@ -104,11 +117,17 @@ function UploadCredential() {
             <div className="flex items-center gap-3">
               <FileText className="h-8 w-8 text-ink-400 flex-shrink-0" />
               <input
+                ref={fileInputRef}
                 type="file"
-                onChange={(e) => setFile(e.target.files[0])}
+                onChange={(e) => setFile(e.target.files[0] || null)}
                 className="block flex-1 text-sm text-ink-600 dark:text-ink-300 cursor-pointer"
               />
             </div>
+            {file && (
+              <p className="mt-2 text-xs text-ink-600 dark:text-ink-400 font-mono break-all">
+                Selected: {file.name}
+              </p>
+            )}
           </div>
           <p className="helper">
             PDF or image. Uploaded to IPFS via Pinata; only its hash + CID are

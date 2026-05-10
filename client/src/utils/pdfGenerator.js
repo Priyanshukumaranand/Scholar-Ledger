@@ -1,6 +1,39 @@
 import { jsPDF } from "jspdf";
 import QRCode from "qrcode";
-import { resolveIssuer, resolveStudent } from "./identity";
+import { resolveIssuer, resolveStudent, ipfsUrl as ipfsGatewayUrl } from "./identity";
+
+const LOGO_FETCH_TIMEOUT_MS = 6000;
+
+const fetchLogoAsPng = (url) =>
+  new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    const timer = setTimeout(() => {
+      img.src = "";
+      reject(new Error("logo fetch timed out"));
+    }, LOGO_FETCH_TIMEOUT_MS);
+    img.onload = () => {
+      clearTimeout(timer);
+      try {
+        const w = img.naturalWidth || 256;
+        const h = img.naturalHeight || 256;
+        const side = Math.max(w, h, 64);
+        const canvas = document.createElement("canvas");
+        canvas.width = side;
+        canvas.height = side;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, (side - w) / 2, (side - h) / 2, w, h);
+        resolve(canvas.toDataURL("image/png"));
+      } catch (err) {
+        reject(err);
+      }
+    };
+    img.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error("logo image failed to load"));
+    };
+    img.src = url;
+  });
 
 /**
  * Generates a printable credential PDF with embedded verification QR.
@@ -35,12 +68,31 @@ export const generateCredentialPDF = async ({
   const studentName = studentProfile?.name || null;
   const accreditations = issuerProfile?.accreditations || [];
 
+  let logoPng = null;
+  if (issuerProfile?.logoCID) {
+    try {
+      logoPng = await fetchLogoAsPng(ipfsGatewayUrl(issuerProfile.logoCID));
+    } catch {
+      logoPng = null;
+    }
+  }
+
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
 
   // Header bar
   doc.setFillColor(20, 40, 90);
   doc.rect(0, 0, pageWidth, 90, "F");
+
+  if (logoPng) {
+    try {
+      const logoSize = 60;
+      doc.addImage(logoPng, "PNG", 24, 15, logoSize, logoSize);
+    } catch {
+      // ignore — fall back to text-only header
+    }
+  }
+
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(22);
@@ -88,20 +140,31 @@ export const generateCredentialPDF = async ({
   doc.text(title, pageWidth / 2, 280, { align: "center" });
   doc.setTextColor(0, 0, 0);
 
-  // Issuer line
+  // Issuer line — show institution logo (if any) above the name for authenticity
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
   doc.text("Issued by", pageWidth / 2, 312, { align: "center" });
 
+  let issuerNameY = 332;
+  if (logoPng) {
+    try {
+      const seal = 50;
+      doc.addImage(logoPng, "PNG", (pageWidth - seal) / 2, 318, seal, seal);
+      issuerNameY = 388;
+    } catch {
+      // fall back to default Y
+    }
+  }
+
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
-  doc.text(issuerName || "(Unregistered issuer)", pageWidth / 2, 332, {
+  doc.text(issuerName || "(Unregistered issuer)", pageWidth / 2, issuerNameY, {
     align: "center",
   });
 
   doc.setFont("courier", "normal");
   doc.setFontSize(9);
-  doc.text(issuer, pageWidth / 2, 348, { align: "center" });
+  doc.text(issuer, pageWidth / 2, issuerNameY + 16, { align: "center" });
 
   if (accreditations.length > 0) {
     doc.setFont("helvetica", "italic");
@@ -110,14 +173,14 @@ export const generateCredentialPDF = async ({
     doc.text(
       "Accredited by " + accreditations.join(", "),
       pageWidth / 2,
-      365,
+      issuerNameY + 33,
       { align: "center" }
     );
     doc.setTextColor(0, 0, 0);
   }
 
   // Metadata block
-  let cursorY = 410;
+  let cursorY = Math.max(410, issuerNameY + 60);
   const labelX = 70;
   const valueX = 170;
   const lineGap = 18;

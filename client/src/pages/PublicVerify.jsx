@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { getReadOnlyContract } from "../utils/readOnlyContract";
 import { ipfsUrl, shortAddr } from "../utils/identity";
+import { humanizeError } from "../utils/errors";
 import IssuerBadge from "../components/IssuerBadge";
 import StudentBadge from "../components/StudentBadge";
 import Card from "../components/ui/Card";
@@ -36,6 +37,7 @@ function PublicVerify() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let alive = true;
     const load = async () => {
       setLoading(true);
       setError("");
@@ -44,10 +46,11 @@ function PublicVerify() {
         const total = Number(await contract.getCredentialCount(address));
         const idx = Number(index);
         if (Number.isNaN(idx) || idx < 0 || idx >= total) {
-          setError("Credential not found for this student.");
+          if (alive) setError("Credential not found for this student.");
           return;
         }
         const cred = await contract.getCredential(address, idx);
+        if (!alive) return;
         setCredential({
           index: idx,
           cidHash: cred[0],
@@ -63,12 +66,15 @@ function PublicVerify() {
           issuer: cred[5],
         });
       } catch (err) {
-        setError(err.reason || err.message || "Could not reach the network.");
+        if (alive) setError(humanizeError(err, "Could not reach the network."));
       } finally {
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     };
     load();
+    return () => {
+      alive = false;
+    };
   }, [address, index]);
 
   if (loading) {

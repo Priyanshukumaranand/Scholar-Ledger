@@ -4,6 +4,7 @@ import { WalletProvider } from "./context/WalletContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { ToastProvider } from "./context/ToastContext";
 import Navbar from "./components/Navbar";
+import NetworkBanner from "./components/NetworkBanner";
 import Home from "./pages/Home";
 import VerifyManual from "./pages/VerifyManual";
 import PublicVerify from "./pages/PublicVerify";
@@ -81,6 +82,7 @@ function App() {
           <ToastProvider>
             <div className="min-h-screen flex flex-col">
               <Navbar />
+              <NetworkBanner />
               <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
                 <Routes>
                   <Route path="/" element={<Home />} />

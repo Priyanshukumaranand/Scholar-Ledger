@@ -4,7 +4,9 @@ import IssuerRegistry from "../abi/IssuerRegistry.json";
 import StudentProfileRegistry from "../abi/StudentProfileRegistry.json";
 import AccreditationRegistry from "../abi/AccreditationRegistry.json";
 
-const RPC_URL = process.env.REACT_APP_RPC_URL;
+// Fall back to Ganache UI's default port so a missing env var doesn't
+// silently break every read call against the chain.
+const RPC_URL = process.env.REACT_APP_RPC_URL || "http://127.0.0.1:7545";
 
 const ADDRESSES = {
   scholarLedger: process.env.REACT_APP_CONTRACT_ADDRESS,

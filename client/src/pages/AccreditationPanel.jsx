@@ -12,6 +12,7 @@ import { useToast } from "../context/ToastContext";
 import { getContract } from "../utils/contract";
 import { getReadOnlyContract } from "../utils/readOnlyContract";
 import { invalidateIdentity } from "../utils/identity";
+import { humanizeError } from "../utils/errors";
 import IssuerBadge from "../components/IssuerBadge";
 import Card, { CardHeader } from "../components/ui/Card";
 import Button from "../components/ui/Button";
@@ -86,7 +87,7 @@ function AccreditationPanel() {
       await fn();
       pushToast({ tone: "success", title: "Success", message: successMsg });
     } catch (err) {
-      setError(err.reason || err.message || "Transaction failed");
+      setError(humanizeError(err));
     } finally {
       setBusy(false);
     }
@@ -148,7 +149,7 @@ function AccreditationPanel() {
       ]);
       setLookupResult({ address: lookup, accredited, labels });
     } catch (err) {
-      setError(err.message || "Lookup failed");
+      setError(humanizeError(err, "Lookup failed"));
     }
   };
 

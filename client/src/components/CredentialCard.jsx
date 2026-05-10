@@ -2,36 +2,27 @@ import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
   Download,
-  Copy,
-  Check,
   ExternalLink,
   XCircle,
   Calendar,
+  Share2,
 } from "lucide-react";
 import { generateCredentialPDF } from "../utils/pdfGenerator";
 import { ipfsUrl } from "../utils/identity";
+import { humanizeError } from "../utils/errors";
 import { useToast } from "../context/ToastContext";
 import IssuerBadge from "./IssuerBadge";
 import Button from "./ui/Button";
 import Badge from "./ui/Badge";
+import ShareCredentialModal from "./ShareCredentialModal";
 
 function CredentialCard({ credential, studentAddress, canRevoke, onRevoke }) {
   const { pushToast } = useToast();
-  const [copied, setCopied] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const verifyUrl = `${window.location.origin}/verify/${studentAddress}/${credential.index}`;
   const ipfsHref = credential.cid ? ipfsUrl(credential.cid) : null;
-
-  const copy = async (text, label) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(label);
-      setTimeout(() => setCopied(""), 1800);
-    } catch {
-      // ignore
-    }
-  };
 
   const downloadPDF = async () => {
     setGenerating(true);
@@ -51,7 +42,7 @@ function CredentialCard({ credential, studentAddress, canRevoke, onRevoke }) {
       pushToast({
         tone: "danger",
         title: "PDF generation failed",
-        message: err.message || "Unknown error",
+        message: humanizeError(err),
       });
     } finally {
       setGenerating(false);
@@ -116,18 +107,9 @@ function CredentialCard({ credential, studentAddress, canRevoke, onRevoke }) {
               <Download className="h-3.5 w-3.5" />
               {generating ? "Generating…" : "Download PDF"}
             </Button>
-            <Button size="sm" variant="secondary" onClick={() => copy(verifyUrl, "verify")}>
-              {copied === "verify" ? (
-                <>
-                  <Check className="h-3.5 w-3.5" />
-                  Copied
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3.5 w-3.5" />
-                  Copy Link
-                </>
-              )}
+            <Button size="sm" variant="secondary" onClick={() => setShareOpen(true)}>
+              <Share2 className="h-3.5 w-3.5" />
+              Share
             </Button>
             {canRevoke && !credential.revoked && (
               <Button
@@ -151,6 +133,13 @@ function CredentialCard({ credential, studentAddress, canRevoke, onRevoke }) {
           </p>
         </div>
       </div>
+
+      <ShareCredentialModal
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        verifyUrl={verifyUrl}
+        title={credential.title}
+      />
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { useWallet } from "../context/WalletContext";
 import ConnectWallet from "../components/ConnectWallet";
 import StudentDashboard from "../components/StudentDashboard";
 import UploadCredential from "../components/UploadCredential";
+import RecentActivity from "../components/RecentActivity";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
 function FeatureCard({ icon: Icon, title, description, to }) {
@@ -131,6 +132,9 @@ function Home() {
           />
         </div>
       </section>
+
+      {/* Recent activity — public-facing trust signal */}
+      <RecentActivity />
 
       {/* Dashboard */}
       <StudentDashboard />

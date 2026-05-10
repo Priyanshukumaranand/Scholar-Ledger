@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ethers } from "ethers";
 import { ShieldCheck, Loader2 } from "lucide-react";
 import { getReadOnlyContract } from "../utils/readOnlyContract";
+import { humanizeError } from "../utils/errors";
 import Button from "./ui/Button";
 import Input from "./ui/Input";
 import Alert from "./ui/Alert";
@@ -37,7 +38,7 @@ function VerifyCredential() {
       const isValid = await contract.verifyCredential(addr, cidHash);
       setResult(isValid);
     } catch (err) {
-      setError(err.reason || err.message || "Verification failed.");
+      setError(humanizeError(err, "Verification failed."));
     } finally {
       setLoading(false);
     }

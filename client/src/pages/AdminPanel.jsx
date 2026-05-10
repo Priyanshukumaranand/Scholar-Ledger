@@ -4,6 +4,7 @@ import { UserPlus, UserX, ArrowRightLeft, Crown, Loader2 } from "lucide-react";
 import { useWallet } from "../context/WalletContext";
 import { useToast } from "../context/ToastContext";
 import { getContract } from "../utils/contract";
+import { humanizeError } from "../utils/errors";
 import Card, { CardHeader } from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
@@ -56,7 +57,7 @@ function AdminPanel() {
       pushToast({ tone: "success", title: "Success", message: successMsg });
       await refreshRoles();
     } catch (err) {
-      setError(err.reason || err.message || "Transaction failed");
+      setError(humanizeError(err));
     } finally {
       setBusy(false);
     }

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { getReadOnlyContract } from "../utils/readOnlyContract";
 import { resolveStudent, ipfsUrl } from "../utils/identity";
+import { humanizeError } from "../utils/errors";
 import IssuerBadge from "../components/IssuerBadge";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
@@ -89,7 +90,7 @@ function PublicProfile() {
         setProfile(p);
       } catch (err) {
         if (!alive) return;
-        setError(err.reason || err.message || "Could not load profile.");
+        setError(humanizeError(err, "Could not load profile."));
       } finally {
         if (alive) setLoading(false);
       }

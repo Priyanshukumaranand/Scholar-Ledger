@@ -3,6 +3,7 @@ import ScholarLedger from "../abi/ScholarLedger.json";
 import IssuerRegistry from "../abi/IssuerRegistry.json";
 import StudentProfileRegistry from "../abi/StudentProfileRegistry.json";
 import AccreditationRegistry from "../abi/AccreditationRegistry.json";
+import { EXPECTED_CHAIN_ID, expectedChainName } from "./network";
 
 const ADDRESSES = {
   scholarLedger: process.env.REACT_APP_CONTRACT_ADDRESS,
@@ -18,21 +19,6 @@ const ABIS = {
   accreditationRegistry: AccreditationRegistry.abi,
 };
 
-const GANACHE_CHAIN_ID = "0x539";
-
-const ensureCorrectChain = async () => {
-  try {
-    await window.ethereum.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: GANACHE_CHAIN_ID }],
-    });
-  } catch {
-    throw new Error(
-      "Please switch MetaMask to the Ganache network (Chain ID 1337) and try again."
-    );
-  }
-};
-
 const requireMetaMask = () => {
   if (!window.ethereum) {
     throw new Error(
@@ -43,8 +29,16 @@ const requireMetaMask = () => {
 
 const getSigner = async () => {
   requireMetaMask();
-  await ensureCorrectChain();
   const provider = new ethers.BrowserProvider(window.ethereum);
+  // Validate chain rather than silently switching — the user is in control,
+  // and the NetworkBanner is already showing them the situation.
+  const network = await provider.getNetwork();
+  const currentChainId = Number(network.chainId);
+  if (currentChainId !== EXPECTED_CHAIN_ID) {
+    throw new Error(
+      `Wrong network. Switch MetaMask to ${expectedChainName()} (chain ${EXPECTED_CHAIN_ID}) before signing this transaction.`
+    );
+  }
   return provider.getSigner();
 };
 

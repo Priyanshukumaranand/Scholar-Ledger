@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { ethers } from "ethers";
 import {
   Upload,
-  FileSpreadsheet,
   CheckCircle2,
   Wand2,
   Trash2,
@@ -14,6 +13,7 @@ import {
   Search,
   Download,
   ShieldCheck,
+  FileSpreadsheet,
 } from "lucide-react";
 import { useWallet } from "../context/WalletContext";
 import { useToast } from "../context/ToastContext";
@@ -21,10 +21,13 @@ import { uploadToIPFS } from "../utils/ipfs";
 import { getContract } from "../utils/contract";
 import { getReadOnlyContract } from "../utils/readOnlyContract";
 import { apiFetch } from "../utils/backend";
+import { humanizeError } from "../utils/errors";
+import useFormDraft from "../utils/useFormDraft";
 import Card, { CardHeader } from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Alert from "../components/ui/Alert";
 import Badge from "../components/ui/Badge";
+import EmptyState from "../components/ui/EmptyState";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
 const defaultTitle = (filename) =>
@@ -35,7 +38,7 @@ const newId = () =>
 
 function BulkIssue() {
   useDocumentTitle("Bulk Issue");
-  const { canIssue } = useWallet();
+  const { canIssue, account } = useWallet();
   const { pushToast } = useToast();
 
   const fileInputRef = useRef(null);
@@ -45,10 +48,12 @@ function BulkIssue() {
   const [uploading, setUploading] = useState(false);
   const [fillAddr, setFillAddr] = useState("");
 
-  // Each row drives one credential in the batch.
-  // { id, source: "file"|"csv", name|null, student, title, cid, cidHash,
-  //   uploadError, alreadyIssued: null|true|false }
-  const [rows, setRows] = useState([]);
+  // Each row drives one credential in the batch. Persisted to localStorage so
+  // accidental refreshes don't waste IPFS upload work.
+  const [rows, setRows, clearRowsDraft] = useFormDraft(
+    `bulk-issue:${account || "anon"}`,
+    []
+  );
 
   const [showCsv, setShowCsv] = useState(false);
   const [csvError, setCsvError] = useState("");
@@ -132,7 +137,7 @@ function BulkIssue() {
       pushToast({
         tone: "danger",
         title: "On-chain check failed",
-        message: err.reason || err.message || "Could not reach the chain.",
+        message: humanizeError(err, "Could not reach the chain."),
       });
       return new Map();
     } finally {
@@ -167,7 +172,7 @@ function BulkIssue() {
         cid = await uploadToIPFS(f);
         cidHash = ethers.keccak256(ethers.toUtf8Bytes(cid));
       } catch (err) {
-        uploadError = err.message || "IPFS upload failed";
+        uploadError = humanizeError(err, "IPFS upload failed");
       }
       newRows.push({
         id: newId(),
@@ -229,7 +234,7 @@ function BulkIssue() {
       // Auto preflight: students from CSV are already known
       if (imported.length > 0) await runPreflight(imported);
     } catch (err) {
-      setCsvError(err.message || "CSV parse failed");
+      setCsvError(humanizeError(err, "CSV parse failed"));
     } finally {
       setCsvImporting(false);
     }
@@ -371,6 +376,7 @@ function BulkIssue() {
 
       const submittedIds = new Set(stillValid.map((r) => r.id));
       setRows((rs) => rs.filter((r) => !submittedIds.has(r.id)));
+      clearRowsDraft();
 
       pushToast({
         tone: "success",
@@ -386,7 +392,7 @@ function BulkIssue() {
       }, 100);
     } catch (err) {
       setSubmitStatus("");
-      setSubmitError(err.reason || err.message || "Batch issuance failed.");
+      setSubmitError(humanizeError(err, "Batch issuance failed."));
     } finally {
       setSubmitting(false);
     }
@@ -457,6 +463,15 @@ function BulkIssue() {
           </Button>
         </div>
       </Card>
+
+      {/* Empty state — shown only when nothing has been added yet */}
+      {rows.length === 0 && !uploading && (
+        <EmptyState
+          icon={FileSpreadsheet}
+          title="No pending rows yet"
+          description="Pick documents above to upload — or import a CSV with student, title, cid columns. Your work is auto-saved if you refresh."
+        />
+      )}
 
       {/* Step 2 */}
       {rows.length > 0 && (

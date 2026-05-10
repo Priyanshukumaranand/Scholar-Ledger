@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { getReadOnlyContract } from "../utils/readOnlyContract";
+import { EXPECTED_CHAIN_ID, switchToExpectedChain } from "../utils/network";
 
 const WalletContext = createContext(null);
 
@@ -10,12 +11,20 @@ const initialRoleState = {
   isAccreditationAuthority: false,
 };
 
+const parseChainId = (raw) => {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === "number") return raw;
+  if (typeof raw === "string") {
+    return raw.startsWith("0x") ? parseInt(raw, 16) : Number(raw);
+  }
+  return null;
+};
+
 export function WalletProvider({ children }) {
   const [account, setAccount] = useState("");
   const [roleState, setRoleState] = useState(initialRoleState);
+  const [chainId, setChainId] = useState(null);
 
-  // Resolves the connected wallet's roles across all relevant contracts.
-  // Read-only — never triggers a wallet popup.
   const resolveRoles = useCallback(async (addr) => {
     if (!addr) {
       setRoleState(initialRoleState);
@@ -34,7 +43,7 @@ export function WalletProvider({ children }) {
       next.isSuperAdmin =
         superAdmin && superAdmin.toLowerCase() === addr.toLowerCase();
     } catch {
-      // ScholarLedger not configured — leave role flags false
+      // ignore
     }
     try {
       const ar = getReadOnlyContract("accreditationRegistry");
@@ -49,8 +58,7 @@ export function WalletProvider({ children }) {
 
   const connectWallet = async () => {
     if (!window.ethereum) {
-      alert("MetaMask is not installed. Please install it to use this app.");
-      return;
+      throw new Error("MetaMask is not installed.");
     }
     const accounts = await window.ethereum.request({
       method: "eth_requestAccounts",
@@ -60,8 +68,17 @@ export function WalletProvider({ children }) {
     await resolveRoles(addr);
   };
 
+  const switchNetwork = async () => {
+    await switchToExpectedChain();
+  };
+
   useEffect(() => {
     if (!window.ethereum) return;
+
+    window.ethereum
+      .request({ method: "eth_chainId" })
+      .then((id) => setChainId(parseChainId(id)))
+      .catch(() => {});
 
     window.ethereum
       .request({ method: "eth_accounts" })
@@ -82,15 +99,29 @@ export function WalletProvider({ children }) {
       }
     };
 
+    const handleChainChanged = (newChainId) => {
+      setChainId(parseChainId(newChainId));
+    };
+
     window.ethereum.on("accountsChanged", handleAccountsChanged);
-    return () =>
+    window.ethereum.on("chainChanged", handleChainChanged);
+    return () => {
       window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
+      window.ethereum.removeListener("chainChanged", handleChainChanged);
+    };
   }, [resolveRoles]);
+
+  const isWrongNetwork =
+    chainId !== null && chainId !== EXPECTED_CHAIN_ID;
 
   const value = {
     account,
+    chainId,
+    expectedChainId: EXPECTED_CHAIN_ID,
+    isWrongNetwork,
     ...roleState,
     connectWallet,
+    switchNetwork,
     refreshRoles: () => resolveRoles(account),
   };
 

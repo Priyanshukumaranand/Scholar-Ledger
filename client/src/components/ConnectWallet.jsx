@@ -2,14 +2,39 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Wallet, Copy, Check, ExternalLink, Building2, User, Shield } from "lucide-react";
 import { useWallet } from "../context/WalletContext";
+import { useToast } from "../context/ToastContext";
 import { shortAddr, ipfsUrl, resolveIssuer, resolveStudent } from "../utils/identity";
+import { humanizeError } from "../utils/errors";
 import Button from "./ui/Button";
 import Badge from "./ui/Badge";
 
 function ConnectWallet() {
   const { account, isAdmin, canIssue, isSuperAdmin, connectWallet } = useWallet();
+  const { pushToast } = useToast();
   const [copied, setCopied] = useState(false);
   const [identity, setIdentity] = useState(null);
+  const [connecting, setConnecting] = useState(false);
+
+  const handleConnect = async () => {
+    setConnecting(true);
+    try {
+      await connectWallet();
+    } catch (err) {
+      const message = humanizeError(err);
+      const isMissing =
+        /metamask is not installed/i.test(err?.message || "") ||
+        !window.ethereum;
+      pushToast({
+        tone: isMissing ? "info" : "danger",
+        title: isMissing ? "MetaMask not detected" : "Connection failed",
+        message: isMissing
+          ? "Install the MetaMask browser extension, then refresh this page."
+          : message,
+      });
+    } finally {
+      setConnecting(false);
+    }
+  };
 
   const role = isSuperAdmin
     ? "Super Admin"
@@ -85,9 +110,9 @@ function ConnectWallet() {
               Required to view, issue, or manage your credentials
             </p>
           </div>
-          <Button onClick={connectWallet}>
+          <Button onClick={handleConnect} disabled={connecting}>
             <Wallet className="h-4 w-4" />
-            Connect
+            {connecting ? "Connecting…" : "Connect"}
           </Button>
         </div>
       </div>

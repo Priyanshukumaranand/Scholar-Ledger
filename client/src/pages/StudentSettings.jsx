@@ -7,10 +7,12 @@ import { getContract } from "../utils/contract";
 import { getReadOnlyContract } from "../utils/readOnlyContract";
 import { uploadToIPFS } from "../utils/ipfs";
 import { invalidateIdentity, ipfsUrl } from "../utils/identity";
+import { humanizeError } from "../utils/errors";
 import Card, { CardHeader } from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Alert from "../components/ui/Alert";
+import { SkeletonText } from "../components/ui/Skeleton";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
 const blank = {
@@ -65,7 +67,7 @@ function StudentSettings() {
           setForm(blank);
         }
       } catch (err) {
-        if (alive) setError(err.reason || err.message || "Failed to load");
+        if (alive) setError(humanizeError(err, "Failed to load"));
       } finally {
         if (alive) setLoading(false);
       }
@@ -135,7 +137,7 @@ function StudentSettings() {
         message: "Your profile is now visible on credential pages.",
       });
     } catch (err) {
-      setError(err.reason || err.message || "Transaction failed.");
+      setError(humanizeError(err));
     } finally {
       setBusy(false);
     }
@@ -160,7 +162,7 @@ function StudentSettings() {
         message: "Your on-chain profile pointer was removed.",
       });
     } catch (err) {
-      setError(err.reason || err.message || "Clear failed.");
+      setError(humanizeError(err, "Clear failed."));
     } finally {
       setBusy(false);
     }
@@ -175,10 +177,7 @@ function StudentSettings() {
           subtitle="Your profile is shown on credentials and verification pages. Stored as a JSON file on IPFS that you fully control."
         />
         {loading ? (
-          <div className="flex items-center gap-2 text-sm text-ink-500 dark:text-ink-400">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading…
-          </div>
+          <SkeletonText lines={5} />
         ) : (
           <form onSubmit={submit} className="space-y-4">
             <Input

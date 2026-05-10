@@ -10,11 +10,13 @@ import {
 } from "lucide-react";
 import { apiFetch, isBackendConfigured } from "../utils/backend";
 import { getReadOnlyContract } from "../utils/readOnlyContract";
+import { humanizeError } from "../utils/errors";
 import Card, { CardHeader } from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Alert from "../components/ui/Alert";
 import Badge from "../components/ui/Badge";
+import EmptyState from "../components/ui/EmptyState";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
 function parseCsv(text) {
@@ -110,7 +112,7 @@ function BulkVerify() {
         }. Drop it in the upload field below to verify.`
       );
     } catch (err) {
-      setGenerateError(err.reason || err.message || "Failed to generate CSV.");
+      setGenerateError(humanizeError(err, "Failed to generate CSV."));
     } finally {
       setGenerating(false);
     }
@@ -134,7 +136,7 @@ function BulkVerify() {
       setItems(parsedItems);
       setErrors(parsedErrors);
     } catch (err) {
-      setError(err.message || "Failed to parse CSV");
+      setError(humanizeError(err, "Failed to parse CSV"));
     } finally {
       setParsing(false);
     }
@@ -152,7 +154,7 @@ function BulkVerify() {
       });
       setResults(result.results || []);
     } catch (err) {
-      setError(err.message || "Verification request failed");
+      setError(humanizeError(err, "Verification request failed"));
     } finally {
       setVerifying(false);
     }
@@ -309,7 +311,23 @@ function BulkVerify() {
         )}
       </Card>
 
-      {results && (
+      {!results && !parsing && items.length === 0 && (
+        <EmptyState
+          icon={ShieldCheck}
+          title="No results yet"
+          description="Drop a CSV above (or generate one) and click Verify. Results will appear here as a sortable table you can export."
+        />
+      )}
+
+      {results && results.length === 0 && (
+        <EmptyState
+          icon={ShieldCheck}
+          title="No matching credentials"
+          description="The CSV parsed but the verifier returned no rows. Re-check the column values."
+        />
+      )}
+
+      {results && results.length > 0 && (
         <Card>
           <CardHeader
             title="Results"
