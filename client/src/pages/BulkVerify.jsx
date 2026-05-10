@@ -7,6 +7,8 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
+  RefreshCcw,
+  Filter,
 } from "lucide-react";
 import { apiFetch, isBackendConfigured } from "../utils/backend";
 import { getReadOnlyContract } from "../utils/readOnlyContract";
@@ -68,6 +70,8 @@ function BulkVerify() {
   const [parsing, setParsing] = useState(false);
   const [results, setResults] = useState(null);
   const [verifying, setVerifying] = useState(false);
+  const [retryingIdx, setRetryingIdx] = useState(null);
+  const [filter, setFilter] = useState("all");
   const [error, setError] = useState("");
 
   // Helper to generate CSV from a student address
@@ -160,6 +164,43 @@ function BulkVerify() {
     }
   };
 
+  const retryRow = async (rowIdx) => {
+    if (!results || !results[rowIdx]) return;
+    const target = results[rowIdx];
+    setRetryingIdx(rowIdx);
+    try {
+      const payload = { student: target.student };
+      if (target.index !== undefined) payload.index = target.index;
+      else if (target.cidHash) payload.cidHash = target.cidHash;
+      const result = await apiFetch("/api/v1/verify/bulk", {
+        method: "POST",
+        body: JSON.stringify({ items: [payload] }),
+      });
+      const fresh = result.results?.[0];
+      if (fresh) {
+        setResults((rs) => rs.map((r, i) => (i === rowIdx ? { ...r, ...fresh } : r)));
+      }
+    } catch (err) {
+      setResults((rs) =>
+        rs.map((r, i) =>
+          i === rowIdx ? { ...r, error: humanizeError(err, "Retry failed") } : r
+        )
+      );
+    } finally {
+      setRetryingIdx(null);
+    }
+  };
+
+  const retryAllFailed = async () => {
+    if (!results) return;
+    const failedIdxs = results
+      .map((r, i) => (r.error ? i : -1))
+      .filter((i) => i >= 0);
+    for (const i of failedIdxs) {
+      await retryRow(i);
+    }
+  };
+
   const exportResults = () => {
     if (!results) return;
     const lines = ["row,student,index_or_hash,valid,revoked,title,issuer,error"];
@@ -190,8 +231,18 @@ function BulkVerify() {
   };
 
   const valid = results?.filter((r) => r.valid === true).length || 0;
-  const invalid = results?.filter((r) => r.valid === false).length || 0;
+  const invalid = results?.filter((r) => r.valid === false && !r.error).length || 0;
   const errored = results?.filter((r) => r.error).length || 0;
+
+  const filteredResults = !results
+    ? null
+    : results.filter((r) => {
+        if (filter === "all") return true;
+        if (filter === "valid") return r.valid === true && !r.error;
+        if (filter === "invalid") return r.valid === false && !r.error;
+        if (filter === "error") return !!r.error;
+        return true;
+      });
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -333,12 +384,50 @@ function BulkVerify() {
             title="Results"
             subtitle={`${valid} valid · ${invalid} invalid · ${errored} errored`}
             actions={
-              <Button size="sm" variant="secondary" onClick={exportResults}>
-                <Download className="h-3.5 w-3.5" />
-                Export CSV
-              </Button>
+              <div className="flex gap-2 flex-wrap">
+                {errored > 0 && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={retryAllFailed}
+                    disabled={retryingIdx !== null}
+                  >
+                    <RefreshCcw className="h-3.5 w-3.5" />
+                    Retry {errored} failed
+                  </Button>
+                )}
+                <Button size="sm" variant="secondary" onClick={exportResults}>
+                  <Download className="h-3.5 w-3.5" />
+                  Export CSV
+                </Button>
+              </div>
             }
           />
+
+          <div className="mb-3 flex items-center gap-1.5 flex-wrap">
+            <span className="inline-flex items-center gap-1 text-xs text-ink-500 dark:text-ink-400">
+              <Filter className="h-3 w-3" />
+              Filter:
+            </span>
+            {[
+              { id: "all", label: `All (${results.length})` },
+              { id: "valid", label: `Valid (${valid})` },
+              { id: "invalid", label: `Invalid (${invalid})` },
+              { id: "error", label: `Errors (${errored})` },
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setFilter(f.id)}
+                className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                  filter === f.id
+                    ? "bg-brand-600 text-white"
+                    : "bg-ink-100 text-ink-700 hover:bg-ink-200 dark:bg-ink-800 dark:text-ink-300 dark:hover:bg-ink-700"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
 
           <div className="overflow-x-auto rounded-lg border border-ink-200 dark:border-ink-800">
             <table className="w-full text-sm">
@@ -349,48 +438,80 @@ function BulkVerify() {
                   <th className="py-2.5 px-3 font-medium">Ref</th>
                   <th className="py-2.5 px-3 font-medium">Title</th>
                   <th className="py-2.5 px-3 font-medium">Status</th>
+                  <th className="py-2.5 px-3 font-medium"></th>
                 </tr>
               </thead>
               <tbody>
-                {results.map((r, i) => (
-                  <tr
-                    key={i}
-                    className="border-t border-ink-100 dark:border-ink-800"
-                  >
-                    <td className="py-2 px-3 text-ink-500 dark:text-ink-400">
-                      {i + 1}
-                    </td>
-                    <td className="py-2 px-3 font-mono text-xs">
-                      {r.student
-                        ? r.student.slice(0, 8) + "…" + r.student.slice(-4)
-                        : "—"}
-                    </td>
-                    <td className="py-2 px-3 font-mono text-xs">
-                      {r.index !== undefined
-                        ? `#${r.index}`
-                        : (r.cidHash || "").slice(0, 14) + "…"}
-                    </td>
-                    <td className="py-2 px-3">{r.title || "—"}</td>
-                    <td className="py-2 px-3">
-                      {r.error ? (
-                        <Badge tone="warning" title={r.error}>
-                          <AlertTriangle className="h-3 w-3" />
-                          Error
-                        </Badge>
-                      ) : r.valid ? (
-                        <Badge tone="success">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Valid
-                        </Badge>
-                      ) : (
-                        <Badge tone="danger">
-                          <XCircle className="h-3 w-3" />
-                          {r.revoked ? "Revoked" : "Invalid"}
-                        </Badge>
-                      )}
+                {filteredResults.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-6 text-center text-sm text-ink-500">
+                      No rows match the current filter.
                     </td>
                   </tr>
-                ))}
+                )}
+                {filteredResults.map((r) => {
+                  const i = results.indexOf(r);
+                  return (
+                    <tr
+                      key={i}
+                      className="border-t border-ink-100 dark:border-ink-800 align-top"
+                    >
+                      <td className="py-2 px-3 text-ink-500 dark:text-ink-400">
+                        {i + 1}
+                      </td>
+                      <td className="py-2 px-3 font-mono text-xs">
+                        {r.student
+                          ? r.student.slice(0, 8) + "…" + r.student.slice(-4)
+                          : "—"}
+                      </td>
+                      <td className="py-2 px-3 font-mono text-xs">
+                        {r.index !== undefined
+                          ? `#${r.index}`
+                          : (r.cidHash || "").slice(0, 14) + "…"}
+                      </td>
+                      <td className="py-2 px-3">{r.title || "—"}</td>
+                      <td className="py-2 px-3">
+                        {r.error ? (
+                          <div className="flex flex-col gap-1">
+                            <Badge tone="warning">
+                              <AlertTriangle className="h-3 w-3" />
+                              Error
+                            </Badge>
+                            <span className="text-[10px] text-ink-500 dark:text-ink-400 break-words">
+                              {r.error}
+                            </span>
+                          </div>
+                        ) : r.valid ? (
+                          <Badge tone="success">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Valid
+                          </Badge>
+                        ) : (
+                          <Badge tone="danger">
+                            <XCircle className="h-3 w-3" />
+                            {r.revoked ? "Revoked" : "Invalid"}
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="py-2 px-3">
+                        {r.error && (
+                          <button
+                            onClick={() => retryRow(i)}
+                            disabled={retryingIdx !== null}
+                            className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline dark:text-brand-400 disabled:opacity-50"
+                          >
+                            {retryingIdx === i ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <RefreshCcw className="h-3 w-3" />
+                            )}
+                            Retry
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
