@@ -6,6 +6,7 @@ import { ToastProvider } from "./context/ToastContext";
 import Navbar from "./components/Navbar";
 import NetworkBanner from "./components/NetworkBanner";
 import Home from "./pages/Home";
+import StudentDashboard from "./components/StudentDashboard";
 import VerifyManual from "./pages/VerifyManual";
 import PublicVerify from "./pages/PublicVerify";
 import PublicProfile from "./pages/PublicProfile";
@@ -97,6 +98,7 @@ function App() {
               >
                 <Routes>
                   <Route path="/" element={<Home />} />
+                  <Route path="/student/:address" element={<StudentDashboard />} />
                   <Route path="/verify" element={<VerifyManual />} />
                   <Route path="/verify/:address/:index" element={<PublicVerify />} />
                   <Route path="/profile/:address" element={<PublicProfile />} />

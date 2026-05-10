@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Search, User, FileText, Settings as SettingsIcon } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Search, User, FileText, Settings as SettingsIcon, Wallet } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { ethers } from "ethers";
 import { getContract } from "../utils/contract";
 import { getReadOnlyContract } from "../utils/readOnlyContract";
@@ -22,6 +22,9 @@ import { notifyCredentialRevoked } from "../utils/notify";
 function StudentDashboard() {
   const { account, isAdmin, canIssue } = useWallet();
   const { pushToast } = useToast();
+  const navigate = useNavigate();
+  const { address: paramAddress } = useParams();
+  const validParam = !!paramAddress && ethers.isAddress(paramAddress);
 
   const [credentials, setCredentials] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -33,9 +36,15 @@ function StudentDashboard() {
   const [revoking, setRevoking] = useState(false);
 
   useEffect(() => {
-    if (!account) return;
-    setViewedStudent(account);
-  }, [account]);
+    if (validParam) {
+      setViewedStudent(ethers.getAddress(paramAddress));
+    } else if (account) {
+      setViewedStudent(account);
+    } else {
+      setViewedStudent("");
+      setCredentials([]);
+    }
+  }, [paramAddress, account, validParam]);
 
   useEffect(() => {
     if (!viewedStudent) return;
@@ -119,12 +128,17 @@ function StudentDashboard() {
       return;
     }
     setError("");
-    setViewedStudent(addr);
+    setStudentInput("");
+    navigate(`/student/${ethers.getAddress(addr)}`);
   };
 
   const handleViewOwn = () => {
     setStudentInput("");
-    setViewedStudent(account);
+    if (validParam) {
+      navigate("/");
+    } else if (account) {
+      setViewedStudent(account);
+    }
   };
 
   const askRevoke = (studentAddress, index) => {
@@ -169,11 +183,37 @@ function StudentDashboard() {
     }
   };
 
-  if (!account) {
+  if (!account && !validParam) {
     return (
       <Card>
-        <CardHeader title="Credential Dashboard" />
-        <Alert tone="info">Connect your wallet to view credentials.</Alert>
+        <CardHeader
+          eyebrow="No wallet needed"
+          title="Look up credentials"
+          subtitle="Enter a wallet address to view credentials issued to it. Public, read-only — no login or browser extension required."
+        />
+        <form onSubmit={handleLookup} className="flex flex-wrap gap-2">
+          <Input
+            placeholder="0x…"
+            value={studentInput}
+            onChange={(e) => setStudentInput(e.target.value)}
+            className="flex-1 min-w-[280px]"
+            autoFocus
+          />
+          <Button type="submit">
+            <Search className="h-4 w-4" />
+            View credentials
+          </Button>
+        </form>
+        {error && (
+          <div className="mt-3">
+            <Alert tone="danger">{error}</Alert>
+          </div>
+        )}
+        <p className="mt-4 text-xs text-ink-500 dark:text-ink-400 inline-flex items-center gap-1.5">
+          <Wallet className="h-3 w-3" />
+          Have MetaMask? Connect your wallet on the home page to manage your
+          profile and act on your credentials.
+        </p>
       </Card>
     );
   }
@@ -196,12 +236,12 @@ function StudentDashboard() {
             : "Browsing another student's public credentials."
         }
         actions={
-          !isMine && (
+          account && !isMine ? (
             <Button variant="secondary" size="sm" onClick={handleViewOwn}>
               <User className="h-3.5 w-3.5" />
               View Mine
             </Button>
-          )
+          ) : null
         }
       />
 
