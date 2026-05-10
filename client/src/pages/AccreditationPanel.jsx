@@ -19,6 +19,7 @@ import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Alert from "../components/ui/Alert";
 import Badge from "../components/ui/Badge";
+import ConfirmDialog from "../components/ui/ConfirmDialog";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
 function AccreditationPanel() {
@@ -35,6 +36,7 @@ function AccreditationPanel() {
   const [authority, setAuthority] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [confirmTransfer, setConfirmTransfer] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -124,7 +126,12 @@ function AccreditationPanel() {
   const onTransfer = (e) => {
     e.preventDefault();
     if (!ethers.isAddress(transferAddr)) return setError("Invalid address");
-    if (!window.confirm(`Transfer authority to ${transferAddr}?`)) return;
+    setError("");
+    setConfirmTransfer(true);
+  };
+
+  const doTransfer = () => {
+    setConfirmTransfer(false);
     run(async () => {
       const c = await getContract("accreditationRegistry");
       const tx = await c.transferAuthority(transferAddr);
@@ -243,6 +250,26 @@ function AccreditationPanel() {
           </Button>
         </form>
       </Card>
+
+      <ConfirmDialog
+        open={confirmTransfer}
+        onCancel={() => setConfirmTransfer(false)}
+        onConfirm={doTransfer}
+        title="Transfer accreditation authority?"
+        message={
+          <>
+            <p>
+              Transfer authority to <code className="font-mono text-xs">{transferAddr}</code>?
+            </p>
+            <p className="mt-2">
+              You will immediately lose the ability to grant or revoke accreditations.
+              Only the new authority can transfer it back.
+            </p>
+          </>
+        }
+        confirmLabel="Transfer authority"
+        tone="warning"
+      />
     </div>
   );
 }

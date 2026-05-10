@@ -16,6 +16,7 @@ import Alert from "./ui/Alert";
 import Badge from "./ui/Badge";
 import EmptyState from "./ui/EmptyState";
 import { SkeletonCard } from "./ui/Skeleton";
+import ConfirmDialog from "./ui/ConfirmDialog";
 
 function StudentDashboard() {
   const { account, isAdmin, canIssue } = useWallet();
@@ -27,6 +28,8 @@ function StudentDashboard() {
 
   const [viewedStudent, setViewedStudent] = useState("");
   const [studentInput, setStudentInput] = useState("");
+  const [revokeTarget, setRevokeTarget] = useState(null);
+  const [revoking, setRevoking] = useState(false);
 
   useEffect(() => {
     if (!account) return;
@@ -123,7 +126,15 @@ function StudentDashboard() {
     setViewedStudent(account);
   };
 
-  const handleRevoke = async (studentAddress, index) => {
+  const askRevoke = (studentAddress, index) => {
+    const cred = credentials.find((c) => c.index === index);
+    setRevokeTarget({ studentAddress, index, title: cred?.title || `Credential #${index}` });
+  };
+
+  const confirmRevoke = async () => {
+    if (!revokeTarget) return;
+    const { studentAddress, index } = revokeTarget;
+    setRevoking(true);
     try {
       const contract = await getContract("scholarLedger");
       const tx = await contract.revokeCredential(studentAddress, index);
@@ -133,6 +144,7 @@ function StudentDashboard() {
         title: "Credential revoked",
         message: `Credential #${index} marked revoked on-chain.`,
       });
+      setRevokeTarget(null);
       refreshCredentials();
     } catch (err) {
       pushToast({
@@ -140,6 +152,8 @@ function StudentDashboard() {
         title: "Revoke failed",
         message: humanizeError(err),
       });
+    } finally {
+      setRevoking(false);
     }
   };
 
@@ -242,10 +256,31 @@ function StudentDashboard() {
               credential={cred}
               studentAddress={viewedStudent}
               canRevoke={isAdmin}
-              onRevoke={handleRevoke}
+              onRevoke={askRevoke}
             />
           ))}
       </div>
+
+      <ConfirmDialog
+        open={!!revokeTarget}
+        onCancel={() => !revoking && setRevokeTarget(null)}
+        onConfirm={confirmRevoke}
+        busy={revoking}
+        tone="danger"
+        title="Revoke this credential?"
+        message={
+          <>
+            <p>
+              You're about to revoke <strong>{revokeTarget?.title}</strong>{" "}
+              (credential #{revokeTarget?.index}). The on-chain record stays,
+              but its status flips to "revoked" and verification will fail
+              going forward.
+            </p>
+            <p className="mt-2">This requires a signed transaction and cannot be undone.</p>
+          </>
+        }
+        confirmLabel="Revoke credential"
+      />
     </Card>
   );
 }

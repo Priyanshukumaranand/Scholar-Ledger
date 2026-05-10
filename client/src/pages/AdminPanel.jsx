@@ -9,6 +9,7 @@ import Card, { CardHeader } from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Alert from "../components/ui/Alert";
+import ConfirmDialog from "../components/ui/ConfirmDialog";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
 const ROLE_ISSUER = 1;
@@ -26,6 +27,8 @@ function AdminPanel() {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
+  const [confirmTransfer, setConfirmTransfer] = useState(false);
 
   if (!account) {
     return (
@@ -77,6 +80,12 @@ function AdminPanel() {
   const onRevoke = (e) => {
     e.preventDefault();
     if (!ethers.isAddress(revokeAddr)) return setError("Invalid address");
+    setError("");
+    setConfirmRevoke(true);
+  };
+
+  const doRevoke = () => {
+    setConfirmRevoke(false);
     run(async () => {
       const c = await getContract("scholarLedger");
       const tx = await c.revokeRole(revokeAddr);
@@ -88,11 +97,12 @@ function AdminPanel() {
   const onTransfer = (e) => {
     e.preventDefault();
     if (!ethers.isAddress(transferAddr)) return setError("Invalid address");
-    if (!window.confirm(
-      `Transfer SUPER ADMIN to ${transferAddr}?\n\nYou will keep your ADMIN role but lose super-admin authority.`
-    )) {
-      return;
-    }
+    setError("");
+    setConfirmTransfer(true);
+  };
+
+  const doTransfer = () => {
+    setConfirmTransfer(false);
     run(async () => {
       const c = await getContract("scholarLedger");
       const tx = await c.transferSuperAdmin(transferAddr);
@@ -191,6 +201,43 @@ function AdminPanel() {
         <Crown className="h-3 w-3" />
         Super admin transfers and role revocations are immediate and on-chain.
       </div>
+
+      <ConfirmDialog
+        open={confirmRevoke}
+        onCancel={() => setConfirmRevoke(false)}
+        onConfirm={doRevoke}
+        title="Revoke this role?"
+        message={
+          <>
+            Remove all roles from <code className="font-mono text-xs">{revokeAddr}</code>?
+            They will immediately lose the ability to issue or manage credentials.
+          </>
+        }
+        confirmLabel="Revoke role"
+        tone="danger"
+      />
+
+      <ConfirmDialog
+        open={confirmTransfer}
+        onCancel={() => setConfirmTransfer(false)}
+        onConfirm={doTransfer}
+        title="Transfer super admin?"
+        message={
+          <>
+            <p>
+              Transfer <strong>SUPER ADMIN</strong> authority to{" "}
+              <code className="font-mono text-xs">{transferAddr}</code>?
+            </p>
+            <p className="mt-2">
+              You will keep your ADMIN role but lose super-admin powers (granting admin,
+              transferring authority). This cannot be undone unless the new super admin
+              transfers it back.
+            </p>
+          </>
+        }
+        confirmLabel="Transfer authority"
+        tone="warning"
+      />
     </div>
   );
 }

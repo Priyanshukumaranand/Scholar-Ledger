@@ -13,6 +13,7 @@ import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Alert from "../components/ui/Alert";
 import { SkeletonText } from "../components/ui/Skeleton";
+import ConfirmDialog from "../components/ui/ConfirmDialog";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
 const blank = {
@@ -33,6 +34,7 @@ function StudentSettings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [photoFile, setPhotoFile] = useState(null);
+  const [confirmClear, setConfirmClear] = useState(false);
 
   useEffect(() => {
     if (!account) return;
@@ -143,10 +145,10 @@ function StudentSettings() {
     }
   };
 
+  const askClearProfile = () => setConfirmClear(true);
+
   const clearProfile = async () => {
-    if (!window.confirm("Clear your on-chain profile pointer? This cannot be undone.")) {
-      return;
-    }
+    setConfirmClear(false);
     setBusy(true);
     setError("");
     try {
@@ -267,7 +269,7 @@ function StudentSettings() {
                   type="button"
                   variant="danger"
                   disabled={busy}
-                  onClick={clearProfile}
+                  onClick={askClearProfile}
                 >
                   <Trash2 className="h-4 w-4" />
                   Clear Profile
@@ -285,6 +287,28 @@ function StudentSettings() {
           </form>
         )}
       </Card>
+
+      <ConfirmDialog
+        open={confirmClear}
+        onCancel={() => setConfirmClear(false)}
+        onConfirm={clearProfile}
+        busy={busy}
+        title="Clear your profile?"
+        message={
+          <>
+            <p>
+              This removes the on-chain pointer to your profile. Existing credentials stay
+              intact, but your name, photo, and bio will no longer appear next to them
+              until you set a new profile.
+            </p>
+            <p className="mt-2">
+              The IPFS file remains pinned but is no longer linked from your address.
+            </p>
+          </>
+        }
+        confirmLabel="Clear profile"
+        tone="danger"
+      />
     </div>
   );
 }

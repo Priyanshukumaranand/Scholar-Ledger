@@ -28,6 +28,7 @@ import Button from "../components/ui/Button";
 import Alert from "../components/ui/Alert";
 import Badge from "../components/ui/Badge";
 import EmptyState from "../components/ui/EmptyState";
+import ConfirmDialog from "../components/ui/ConfirmDialog";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
 const defaultTitle = (filename) =>
@@ -258,14 +259,15 @@ function BulkIssue() {
     setRows((rs) => rs.filter((r) => r.id !== id));
   };
 
+  const [confirmClear, setConfirmClear] = useState(false);
+
   const clearAll = () => {
     if (rows.length === 0) return;
-    if (
-      !window.confirm(
-        "Clear all pending rows? Any IPFS uploads remain pinned but will not be issued."
-      )
-    )
-      return;
+    setConfirmClear(true);
+  };
+
+  const doClearAll = () => {
+    setConfirmClear(false);
     setRows([]);
   };
 
@@ -781,6 +783,16 @@ function BulkIssue() {
           </Card>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmClear}
+        onCancel={() => setConfirmClear(false)}
+        onConfirm={doClearAll}
+        title="Clear all pending rows?"
+        message="Any IPFS uploads stay pinned but will not be issued on-chain. You can re-add them later."
+        confirmLabel="Clear rows"
+        tone="warning"
+      />
     </div>
   );
 }
