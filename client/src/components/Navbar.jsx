@@ -10,6 +10,7 @@ import {
   UserCircle,
   Settings,
   Award,
+  Activity,
   Menu,
   X,
   GraduationCap,
@@ -87,6 +88,7 @@ function Navbar() {
             <NavItem to="/bulk-verify" icon={Layers}>Bulk Verify</NavItem>
             <NavItem to="/scan" icon={ScanLine}>Scan</NavItem>
             {canIssue && <NavItem to="/bulk-issue" icon={Send}>Bulk Issue</NavItem>}
+            {canIssue && <NavItem to="/activity" icon={Activity}>Activity</NavItem>}
             {canIssue && !isAdmin && <NavItem to="/issuer-settings" icon={Building2}>Institution</NavItem>}
             {isAdmin && <NavItem to="/admin" icon={Settings}>Admin</NavItem>}
             {isAccreditationAuthority && (
@@ -117,6 +119,7 @@ function Navbar() {
           <NavItem to="/bulk-verify" icon={Layers} onClick={close}>Bulk Verify</NavItem>
           <NavItem to="/scan" icon={ScanLine} onClick={close}>Scan QR</NavItem>
           {canIssue && <NavItem to="/bulk-issue" icon={Send} onClick={close}>Bulk Issue</NavItem>}
+          {canIssue && <NavItem to="/activity" icon={Activity} onClick={close}>Activity</NavItem>}
           {canIssue && !isAdmin && <NavItem to="/issuer-settings" icon={Building2} onClick={close}>Institution</NavItem>}
           {isAdmin && <NavItem to="/admin" icon={Settings} onClick={close}>Admin</NavItem>}
           {isAccreditationAuthority && (

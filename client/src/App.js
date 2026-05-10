@@ -16,6 +16,7 @@ import BulkIssue from "./pages/BulkIssue";
 import BulkVerify from "./pages/BulkVerify";
 import AdminPanel from "./pages/AdminPanel";
 import AccreditationPanel from "./pages/AccreditationPanel";
+import IssuerActivity from "./pages/IssuerActivity";
 
 function NotFound() {
   return (
@@ -96,6 +97,7 @@ function App() {
                   <Route path="/bulk-verify" element={<BulkVerify />} />
                   <Route path="/admin" element={<AdminPanel />} />
                   <Route path="/accreditation" element={<AccreditationPanel />} />
+                  <Route path="/activity" element={<IssuerActivity />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </main>
