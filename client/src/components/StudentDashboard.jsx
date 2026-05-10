@@ -17,6 +17,7 @@ import Badge from "./ui/Badge";
 import EmptyState from "./ui/EmptyState";
 import { SkeletonCard } from "./ui/Skeleton";
 import ConfirmDialog from "./ui/ConfirmDialog";
+import { notifyCredentialRevoked } from "../utils/notify";
 
 function StudentDashboard() {
   const { account, isAdmin, canIssue } = useWallet();
@@ -144,6 +145,17 @@ function StudentDashboard() {
         title: "Credential revoked",
         message: `Credential #${index} marked revoked on-chain.`,
       });
+      const result = await notifyCredentialRevoked({
+        student: studentAddress,
+        title: revokeTarget.title,
+      });
+      if (result?.ok) {
+        pushToast({
+          tone: "info",
+          title: "Email sent",
+          message: "Student notified by email.",
+        });
+      }
       setRevokeTarget(null);
       refreshCredentials();
     } catch (err) {

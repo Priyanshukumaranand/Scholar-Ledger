@@ -8,6 +8,7 @@ import { useToast } from "../context/ToastContext";
 import { humanizeError } from "../utils/errors";
 import useFormDraft from "../utils/useFormDraft";
 import { rememberTitle } from "../utils/credentialPresets";
+import { notifyCredentialIssued } from "../utils/notify";
 import Card, { CardHeader } from "./ui/Card";
 import Button from "./ui/Button";
 import Input from "./ui/Input";
@@ -76,7 +77,7 @@ function UploadCredential() {
       const contract = await getContract("scholarLedger");
       const cidHash = ethers.keccak256(ethers.toUtf8Bytes(ipfsCid));
       const tx = await contract.issueCredential(addr, cidHash, ipfsCid, trimmedTitle);
-      await tx.wait();
+      const receipt = await tx.wait();
 
       rememberTitle(account, trimmedTitle);
       setStatus("");
@@ -86,6 +87,36 @@ function UploadCredential() {
         title: "Credential issued",
         message: `${trimmedTitle} anchored on-chain successfully.`,
       });
+
+      // Best-effort email notification (no-op if disabled or no email).
+      const issuedEvent = receipt?.logs?.find((l) => {
+        try {
+          const parsed = contract.interface.parseLog(l);
+          return parsed?.name === "CredentialIssued";
+        } catch {
+          return false;
+        }
+      });
+      let issuedIndex = null;
+      if (issuedEvent) {
+        const parsed = contract.interface.parseLog(issuedEvent);
+        issuedIndex = Number(parsed.args?.index ?? -1);
+      }
+      if (issuedIndex !== null && issuedIndex >= 0) {
+        const result = await notifyCredentialIssued({
+          student: addr,
+          index: issuedIndex,
+          title: trimmedTitle,
+          issuerAddress: account,
+        });
+        if (result?.ok) {
+          pushToast({
+            tone: "info",
+            title: "Email sent",
+            message: "Student notified by email.",
+          });
+        }
+      }
     } catch (err) {
       setStatus("");
       setError(humanizeError(err));

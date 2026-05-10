@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Building2, Save, Loader2 } from "lucide-react";
+import { Building2, Save, Loader2, Mail } from "lucide-react";
 import { getContract } from "../utils/contract";
 import { getReadOnlyContract } from "../utils/readOnlyContract";
 import { uploadToIPFS } from "../utils/ipfs";
@@ -7,6 +7,12 @@ import { useWallet } from "../context/WalletContext";
 import { useToast } from "../context/ToastContext";
 import { invalidateIdentity, ipfsUrl } from "../utils/identity";
 import { humanizeError } from "../utils/errors";
+import {
+  getNotifyEnabled,
+  getNotifyToken,
+  setNotifyEnabled,
+  setNotifyToken,
+} from "../utils/notify";
 import Card, { CardHeader } from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
@@ -32,6 +38,21 @@ function IssuerSettings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [logoFile, setLogoFile] = useState(null);
+  const [notifyEnabled, setNotifyEnabledState] = useState(getNotifyEnabled());
+  const [notifyToken, setNotifyTokenState] = useState(getNotifyToken());
+
+  const onNotifyToggle = (next) => {
+    setNotifyEnabledState(next);
+    setNotifyEnabled(next);
+  };
+  const onNotifyTokenSave = () => {
+    setNotifyToken(notifyToken.trim());
+    pushToast({
+      tone: "success",
+      title: "Saved",
+      message: notifyToken.trim() ? "API token stored locally." : "API token cleared.",
+    });
+  };
 
   useEffect(() => {
     if (!account) return;
@@ -134,7 +155,7 @@ function IssuerSettings() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto space-y-5">
       <Card>
         <CardHeader
           eyebrow="Issuer"
@@ -223,6 +244,57 @@ function IssuerSettings() {
             {error && <Alert tone="danger">{error}</Alert>}
           </form>
         )}
+      </Card>
+
+      <Card>
+        <CardHeader
+          eyebrow="Optional"
+          title="Email notifications"
+          subtitle="When enabled, students with an email on their profile receive an email after you issue or revoke a credential."
+        />
+        <div className="space-y-4">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 rounded border-ink-300 text-brand-600 focus:ring-brand-500"
+              checked={notifyEnabled}
+              onChange={(e) => onNotifyToggle(e.target.checked)}
+            />
+            <div>
+              <div className="text-sm font-medium text-ink-900 dark:text-ink-100">
+                Send email notifications
+              </div>
+              <div className="mt-0.5 text-xs text-ink-500 dark:text-ink-400">
+                Best-effort. If a student's profile has no email or the backend
+                isn't configured, the call is silently skipped.
+              </div>
+            </div>
+          </label>
+
+          <div>
+            <label className="label flex items-center gap-1.5">
+              <Mail className="h-3.5 w-3.5" />
+              Notify API token
+            </label>
+            <div className="flex gap-2 flex-wrap">
+              <input
+                type="password"
+                className="input flex-1 min-w-[260px] font-mono text-xs"
+                placeholder="Stored only in this browser's localStorage"
+                value={notifyToken}
+                onChange={(e) => setNotifyTokenState(e.target.value)}
+                autoComplete="off"
+              />
+              <Button variant="secondary" size="sm" onClick={onNotifyTokenSave}>
+                Save token
+              </Button>
+            </div>
+            <p className="helper">
+              The token must match <code className="font-mono">NOTIFY_API_TOKEN</code>{" "}
+              on the backend. Ask your admin if you don't have one.
+            </p>
+          </div>
+        </div>
       </Card>
     </div>
   );

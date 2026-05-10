@@ -31,6 +31,7 @@ import EmptyState from "../components/ui/EmptyState";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import TitleCombobox from "../components/ui/TitleCombobox";
 import { rememberTitle } from "../utils/credentialPresets";
+import { notifyCredentialIssued, getNotifyEnabled } from "../utils/notify";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
 const defaultTitle = (filename) =>
@@ -390,7 +391,7 @@ function BulkIssue() {
       );
       setTxHash(tx.hash);
       setSubmitStatus("Mining transaction…");
-      await tx.wait();
+      const receipt = await tx.wait();
 
       const issuedSnapshot = stillValid.map((r) => ({
         student: r.student.trim(),
@@ -403,6 +404,42 @@ function BulkIssue() {
       uniqueTitles.forEach((t) => rememberTitle(account, t));
       setLastSubmitted(issuedSnapshot);
       setSubmitStatus("");
+
+      // Best-effort email notifications. Parse logs to map student -> index.
+      if (getNotifyEnabled()) {
+        const issuedEvents = (receipt?.logs || [])
+          .map((l) => {
+            try {
+              return contract.interface.parseLog(l);
+            } catch {
+              return null;
+            }
+          })
+          .filter((p) => p?.name === "CredentialIssued");
+        let sent = 0;
+        await Promise.all(
+          issuedEvents.map(async (parsed) => {
+            const student = parsed.args?.student;
+            const index = Number(parsed.args?.index ?? -1);
+            const title = parsed.args?.title || "";
+            if (!student || index < 0) return;
+            const result = await notifyCredentialIssued({
+              student,
+              index,
+              title,
+              issuerAddress: account,
+            });
+            if (result?.ok) sent += 1;
+          })
+        );
+        if (sent > 0) {
+          pushToast({
+            tone: "info",
+            title: "Emails sent",
+            message: `${sent} student${sent === 1 ? "" : "s"} notified by email.`,
+          });
+        }
+      }
 
       const submittedIds = new Set(stillValid.map((r) => r.id));
       setRows((rs) => rs.filter((r) => !submittedIds.has(r.id)));
