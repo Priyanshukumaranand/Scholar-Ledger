@@ -197,7 +197,6 @@ function StudentDashboard() {
             value={studentInput}
             onChange={(e) => setStudentInput(e.target.value)}
             className="flex-1 min-w-[280px]"
-            autoFocus
           />
           <Button type="submit">
             <Search className="h-4 w-4" />
