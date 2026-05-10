@@ -29,6 +29,8 @@ import Alert from "../components/ui/Alert";
 import Badge from "../components/ui/Badge";
 import EmptyState from "../components/ui/EmptyState";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
+import TitleCombobox from "../components/ui/TitleCombobox";
+import { rememberTitle } from "../utils/credentialPresets";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
 const defaultTitle = (filename) =>
@@ -48,6 +50,7 @@ function BulkIssue() {
   const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [fillAddr, setFillAddr] = useState("");
+  const [fillTitle, setFillTitle] = useState("");
 
   // Each row drives one credential in the batch. Persisted to localStorage so
   // accidental refreshes don't waste IPFS upload work.
@@ -289,6 +292,27 @@ function BulkIssue() {
     pushToast({ tone: "success", message: "Empty rows filled." });
   };
 
+  const applyTitleToAll = (mode) => {
+    const t = fillTitle.trim();
+    if (!t) {
+      pushToast({ tone: "danger", message: "Pick or type a title first." });
+      return;
+    }
+    setRows((rs) =>
+      rs.map((r) => {
+        if (mode === "empty" && r.title.trim()) return r;
+        return { ...r, title: t };
+      })
+    );
+    pushToast({
+      tone: "success",
+      message:
+        mode === "all"
+          ? "Title applied to every row."
+          : "Title applied to empty rows.",
+    });
+  };
+
   const removeAllAlreadyIssued = () => {
     setRows((rs) => rs.filter((r) => r.alreadyIssued !== true));
     pushToast({ tone: "info", message: "Cleared already-issued rows." });
@@ -373,6 +397,10 @@ function BulkIssue() {
         title: r.title.trim(),
         cid: r.cid,
       }));
+      const uniqueTitles = Array.from(
+        new Set(issuedSnapshot.map((r) => r.title).filter(Boolean))
+      );
+      uniqueTitles.forEach((t) => rememberTitle(account, t));
       setLastSubmitted(issuedSnapshot);
       setSubmitStatus("");
 
@@ -511,6 +539,30 @@ function BulkIssue() {
               </div>
             }
           />
+
+          <div className="mb-4 rounded-lg border border-ink-200 dark:border-ink-800 bg-ink-50/50 dark:bg-ink-900/40 p-3">
+            <div className="flex gap-2 flex-wrap items-end">
+              <div className="flex-1 min-w-[260px]">
+                <TitleCombobox
+                  label="Apply title to rows"
+                  placeholder="Pick a preset or type a title…"
+                  value={fillTitle}
+                  onChange={setFillTitle}
+                  issuerAddr={account}
+                />
+              </div>
+              <Button size="sm" variant="secondary" onClick={() => applyTitleToAll("empty")}>
+                <Wand2 className="h-3.5 w-3.5" />
+                Fill empty
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => applyTitleToAll("all")}>
+                Apply to all
+              </Button>
+            </div>
+            <p className="mt-1.5 text-[11px] text-ink-500 dark:text-ink-400">
+              Use this when most rows share a title (e.g. "Bachelor of Science"). You can still tweak each row individually below.
+            </p>
+          </div>
 
           <div className="flex gap-2 flex-wrap mb-3">
             <Badge tone="success">Ready: {ready}</Badge>

@@ -7,10 +7,12 @@ import { useWallet } from "../context/WalletContext";
 import { useToast } from "../context/ToastContext";
 import { humanizeError } from "../utils/errors";
 import useFormDraft from "../utils/useFormDraft";
+import { rememberTitle } from "../utils/credentialPresets";
 import Card, { CardHeader } from "./ui/Card";
 import Button from "./ui/Button";
 import Input from "./ui/Input";
 import Alert from "./ui/Alert";
+import TitleCombobox from "./ui/TitleCombobox";
 
 const DRAFT_BLANK = { studentAddress: "", title: "" };
 
@@ -76,6 +78,7 @@ function UploadCredential() {
       const tx = await contract.issueCredential(addr, cidHash, ipfsCid, trimmedTitle);
       await tx.wait();
 
+      rememberTitle(account, trimmedTitle);
       setStatus("");
       reset();
       pushToast({
@@ -105,11 +108,10 @@ function UploadCredential() {
           value={studentAddress}
           onChange={(e) => setStudentAddress(e.target.value)}
         />
-        <Input
-          label="Credential Title"
-          placeholder="e.g. BTech Computer Science — Semester 8"
+        <TitleCombobox
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={setTitle}
+          issuerAddr={account}
         />
         <div>
           <label className="label">Document</label>
