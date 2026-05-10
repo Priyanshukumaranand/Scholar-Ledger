@@ -84,9 +84,10 @@ export function ToastProvider({ children }) {
   );
 
   useEffect(() => {
+    const timersAtMount = timers.current;
     return () => {
-      timers.current.forEach((h) => clearTimeout(h));
-      timers.current.clear();
+      timersAtMount.forEach((h) => clearTimeout(h));
+      timersAtMount.clear();
     };
   }, []);
 
