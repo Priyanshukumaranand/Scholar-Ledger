@@ -52,6 +52,7 @@ function BulkIssue() {
   const [uploading, setUploading] = useState(false);
   const [fillAddr, setFillAddr] = useState("");
   const [fillTitle, setFillTitle] = useState("");
+  const [confirmClear, setConfirmClear] = useState(false);
 
   // Each row drives one credential in the batch. Persisted to localStorage so
   // accidental refreshes don't waste IPFS upload work.
@@ -262,8 +263,6 @@ function BulkIssue() {
   const removeRow = (id) => {
     setRows((rs) => rs.filter((r) => r.id !== id));
   };
-
-  const [confirmClear, setConfirmClear] = useState(false);
 
   const clearAll = () => {
     if (rows.length === 0) return;

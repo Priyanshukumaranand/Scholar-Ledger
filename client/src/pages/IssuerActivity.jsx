@@ -52,7 +52,15 @@ function IssuerActivity() {
         const latestBlock = await provider.getBlockNumber();
         const fromBlock = Math.max(0, latestBlock - LOOKBACK_BLOCKS);
 
-        const issuedFilter = sl.filters.CredentialIssued(null, null, account);
+        // CredentialIssued(student, index, cidHash, title, issuer) — non-indexed
+        // cidHash/title must be null when filtering on indexed issuer.
+        const issuedFilter = sl.filters.CredentialIssued(
+          null,
+          null,
+          null,
+          null,
+          account
+        );
         const revokedFilter = sl.filters.CredentialRevoked(null, null, account);
 
         const [issuedLogs, revokedLogs] = await Promise.all([
