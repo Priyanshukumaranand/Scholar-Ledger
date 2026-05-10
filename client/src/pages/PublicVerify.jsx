@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -7,9 +7,15 @@ import {
   ExternalLink,
   Loader2,
   ArrowRight,
+  Printer,
+  Copy,
+  Check,
+  ShieldCheck,
+  AlertTriangle,
+  FileText,
 } from "lucide-react";
 import { getReadOnlyContract } from "../utils/readOnlyContract";
-import { ipfsUrl, shortAddr } from "../utils/identity";
+import { ipfsUrl, shortAddr, resolveIssuer } from "../utils/identity";
 import { humanizeError } from "../utils/errors";
 import IssuerBadge from "../components/IssuerBadge";
 import StudentBadge from "../components/StudentBadge";
@@ -18,14 +24,25 @@ import useDocumentTitle from "../utils/useDocumentTitle";
 import Badge from "../components/ui/Badge";
 import Alert from "../components/ui/Alert";
 
-function DetailRow({ label, children }) {
+function CheckRow({ ok, label, detail }) {
   return (
-    <>
-      <dt className="text-xs font-medium uppercase tracking-wider text-ink-500 dark:text-ink-400">
-        {label}
-      </dt>
-      <dd className="text-sm text-ink-900 dark:text-ink-100">{children}</dd>
-    </>
+    <li className="flex items-start gap-2.5 py-2">
+      {ok ? (
+        <CheckCircle2 className="h-4 w-4 mt-0.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+      ) : (
+        <XCircle className="h-4 w-4 mt-0.5 text-red-600 dark:text-red-400 flex-shrink-0" />
+      )}
+      <div className="min-w-0">
+        <div className="text-sm font-medium text-ink-900 dark:text-ink-100">
+          {label}
+        </div>
+        {detail && (
+          <div className="mt-0.5 text-xs text-ink-500 dark:text-ink-400">
+            {detail}
+          </div>
+        )}
+      </div>
+    </li>
   );
 }
 
@@ -33,8 +50,11 @@ function PublicVerify() {
   const { address, index } = useParams();
   useDocumentTitle("Verify Credential");
   const [credential, setCredential] = useState(null);
+  const [issuer, setIssuer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [previewKind, setPreviewKind] = useState(null); // "image" | "pdf" | "other" | null
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -51,7 +71,7 @@ function PublicVerify() {
         }
         const cred = await contract.getCredential(address, idx);
         if (!alive) return;
-        setCredential({
+        const credObj = {
           index: idx,
           cidHash: cred[0],
           cid: cred[1],
@@ -64,7 +84,11 @@ function PublicVerify() {
           issuedOnRaw: Number(cred[3]),
           revoked: cred[4],
           issuer: cred[5],
-        });
+        };
+        setCredential(credObj);
+
+        const iss = await resolveIssuer(cred[5]);
+        if (alive) setIssuer(iss);
       } catch (err) {
         if (alive) setError(humanizeError(err, "Could not reach the network."));
       } finally {
@@ -76,6 +100,40 @@ function PublicVerify() {
       alive = false;
     };
   }, [address, index]);
+
+  // Sniff the IPFS document content-type to pick a preview renderer.
+  useEffect(() => {
+    if (!credential?.cid) return;
+    let alive = true;
+    const url = ipfsUrl(credential.cid);
+    fetch(url, { method: "HEAD" })
+      .then((res) => {
+        if (!alive) return;
+        const ct = (res.headers.get("content-type") || "").toLowerCase();
+        if (ct.startsWith("image/")) setPreviewKind("image");
+        else if (ct.includes("pdf")) setPreviewKind("pdf");
+        else setPreviewKind("other");
+      })
+      .catch(() => {
+        if (alive) setPreviewKind("other");
+      });
+    return () => {
+      alive = false;
+    };
+  }, [credential?.cid]);
+
+  const verifyUrl =
+    typeof window !== "undefined" ? window.location.href : "";
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(verifyUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // ignore
+    }
+  };
 
   if (loading) {
     return (
@@ -113,116 +171,286 @@ function PublicVerify() {
   }
 
   const isValid = !credential.revoked;
-  const verifyUrl = window.location.href;
+  const issuerKnown = !!issuer?.exists;
+  const issuerAccredited = !!issuer?.accredited;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-5">
-      {/* Status banner */}
+    <div className="max-w-4xl mx-auto space-y-5 print:max-w-none print:space-y-3">
+      {/* Hero status */}
       <div
-        className={`relative overflow-hidden rounded-2xl border-2 p-7 text-center ${
+        className={`relative overflow-hidden rounded-2xl border-2 p-7 sm:p-9 ${
           isValid
             ? "border-emerald-300 bg-gradient-to-br from-emerald-50 to-white dark:border-emerald-800/60 dark:from-emerald-950/30 dark:to-ink-900"
             : "border-red-300 bg-gradient-to-br from-red-50 to-white dark:border-red-800/60 dark:from-red-950/30 dark:to-ink-900"
         }`}
       >
-        <div
-          className={`mx-auto h-16 w-16 rounded-full flex items-center justify-center mb-3 ${
-            isValid
-              ? "bg-emerald-100 dark:bg-emerald-900/40"
-              : "bg-red-100 dark:bg-red-900/40"
-          }`}
-        >
-          {isValid ? (
-            <CheckCircle2 className="h-9 w-9 text-emerald-600 dark:text-emerald-400" />
-          ) : (
-            <XCircle className="h-9 w-9 text-red-600 dark:text-red-400" />
-          )}
-        </div>
-        <h1
-          className={`text-2xl sm:text-3xl font-bold tracking-tight ${
-            isValid
-              ? "text-emerald-700 dark:text-emerald-300"
-              : "text-red-700 dark:text-red-300"
-          }`}
-        >
-          {isValid ? "Valid Credential" : "Revoked Credential"}
-        </h1>
-        <p className="mt-2 text-sm text-ink-600 dark:text-ink-400">
-          Independently verified against the public blockchain.
-        </p>
-      </div>
-
-      {/* Credential details */}
-      <Card>
-        <h2 className="text-2xl font-bold tracking-tight gradient-text">
-          {credential.title}
-        </h2>
-
-        <dl className="mt-6 grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-y-5 gap-x-5">
-          <DetailRow label="Issued To">
-            <StudentBadge address={address} size="lg" />
-          </DetailRow>
-
-          <DetailRow label="Issued By">
-            <IssuerBadge address={credential.issuer} size="lg" />
-          </DetailRow>
-
-          <DetailRow label="Date">{credential.issuedOn}</DetailRow>
-
-          <DetailRow label="Status">
-            <Badge tone={isValid ? "success" : "danger"}>
-              {isValid ? "ACTIVE" : "REVOKED"}
-            </Badge>
-          </DetailRow>
-
-          {credential.cid && (
-            <DetailRow label="IPFS Document">
-              <a
-                href={ipfsUrl(credential.cid)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 text-sm font-mono break-all"
-              >
-                {credential.cid}
-                <ExternalLink className="h-3 w-3 flex-shrink-0" />
-              </a>
-            </DetailRow>
-          )}
-
-          <DetailRow label="CID Hash">
-            <code className="text-xs font-mono text-ink-500 dark:text-ink-500 break-all">
-              {credential.cidHash}
-            </code>
-          </DetailRow>
-        </dl>
-      </Card>
-
-      {/* QR + share */}
-      <Card>
-        <div className="flex items-center gap-6 flex-wrap">
-          <div className="rounded-xl bg-white p-3 ring-1 ring-ink-200 dark:ring-ink-700">
-            <QRCodeSVG value={verifyUrl} size={120} level="M" />
+        <div className="flex items-start gap-5 flex-wrap">
+          <div
+            className={`h-20 w-20 rounded-2xl flex items-center justify-center flex-shrink-0 ${
+              isValid
+                ? "bg-emerald-100 dark:bg-emerald-900/40"
+                : "bg-red-100 dark:bg-red-900/40"
+            }`}
+          >
+            {isValid ? (
+              <CheckCircle2 className="h-12 w-12 text-emerald-600 dark:text-emerald-400" />
+            ) : (
+              <XCircle className="h-12 w-12 text-red-600 dark:text-red-400" />
+            )}
           </div>
-          <div className="flex-1 min-w-[220px]">
-            <h3 className="text-sm font-semibold text-ink-900 dark:text-ink-100">
-              Share this verification
-            </h3>
-            <p className="mt-1 text-xs text-ink-500 dark:text-ink-400 leading-relaxed">
-              Anyone with this QR or link can re-verify the credential without
-              installing anything or signing in.
+          <div className="flex-1 min-w-[240px]">
+            <div className="text-xs font-semibold uppercase tracking-widest text-ink-500 dark:text-ink-400">
+              On-chain verification
+            </div>
+            <h1
+              className={`mt-1 text-3xl sm:text-4xl font-bold tracking-tight ${
+                isValid
+                  ? "text-emerald-700 dark:text-emerald-300"
+                  : "text-red-700 dark:text-red-300"
+              }`}
+            >
+              {isValid ? "Verified Credential" : "Revoked Credential"}
+            </h1>
+            <p className="mt-2 text-sm text-ink-600 dark:text-ink-400 max-w-prose">
+              {isValid
+                ? "This credential exists on the public blockchain, has not been revoked, and was issued by a wallet that held issuer privileges at the time."
+                : "The issuing institution has invalidated this credential. It should not be considered authentic."}
             </p>
-            <div className="mt-3">
-              <Link
-                to={`/profile/${address}`}
-                className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+            <div className="mt-3 flex gap-2 flex-wrap print:hidden">
+              <button
+                onClick={() => window.print()}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-ink-700 ring-1 ring-ink-200 hover:bg-ink-50 dark:bg-ink-900 dark:text-ink-200 dark:ring-ink-700 dark:hover:bg-ink-800"
               >
-                View {shortAddr(address)}'s full profile
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
+                <Printer className="h-3.5 w-3.5" />
+                Print verification
+              </button>
+              <button
+                onClick={copyLink}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-ink-700 ring-1 ring-ink-200 hover:bg-ink-50 dark:bg-ink-900 dark:text-ink-200 dark:ring-ink-700 dark:hover:bg-ink-800"
+              >
+                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? "Copied" : "Copy verification link"}
+              </button>
             </div>
           </div>
+          <div className="hidden sm:flex flex-col items-center print:hidden">
+            <div className="rounded-xl bg-white p-2 ring-1 ring-ink-200 dark:ring-ink-700">
+              <QRCodeSVG value={verifyUrl} size={96} level="M" />
+            </div>
+            <span className="mt-1.5 text-[10px] uppercase tracking-wider text-ink-500">
+              Scan
+            </span>
+          </div>
         </div>
-      </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-5">
+        {/* Left: details + checks */}
+        <div className="space-y-5">
+          <Card>
+            <h2 className="text-2xl font-bold tracking-tight gradient-text">
+              {credential.title}
+            </h2>
+            <dl className="mt-5 grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-y-4 gap-x-5">
+              <dt className="text-xs font-medium uppercase tracking-wider text-ink-500 dark:text-ink-400">
+                Issued To
+              </dt>
+              <dd>
+                <StudentBadge address={address} size="lg" />
+              </dd>
+              <dt className="text-xs font-medium uppercase tracking-wider text-ink-500 dark:text-ink-400">
+                Issued By
+              </dt>
+              <dd>
+                <IssuerBadge address={credential.issuer} size="lg" />
+              </dd>
+              <dt className="text-xs font-medium uppercase tracking-wider text-ink-500 dark:text-ink-400">
+                Date
+              </dt>
+              <dd className="text-sm text-ink-900 dark:text-ink-100">
+                {credential.issuedOn}
+              </dd>
+              <dt className="text-xs font-medium uppercase tracking-wider text-ink-500 dark:text-ink-400">
+                Status
+              </dt>
+              <dd>
+                <Badge tone={isValid ? "success" : "danger"}>
+                  {isValid ? "ACTIVE" : "REVOKED"}
+                </Badge>
+              </dd>
+              <dt className="text-xs font-medium uppercase tracking-wider text-ink-500 dark:text-ink-400">
+                IPFS Document
+              </dt>
+              <dd>
+                {credential.cid ? (
+                  <a
+                    href={ipfsUrl(credential.cid)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-brand-600 hover:text-brand-700 dark:text-brand-400 text-xs font-mono break-all"
+                  >
+                    {credential.cid}
+                    <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                  </a>
+                ) : (
+                  <span className="text-xs text-ink-400">Not stored</span>
+                )}
+              </dd>
+              <dt className="text-xs font-medium uppercase tracking-wider text-ink-500 dark:text-ink-400">
+                CID Hash
+              </dt>
+              <dd>
+                <code className="text-[11px] font-mono text-ink-500 dark:text-ink-500 break-all">
+                  {credential.cidHash}
+                </code>
+              </dd>
+            </dl>
+          </Card>
+
+          {/* IPFS preview */}
+          {credential.cid && (
+            <Card>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-ink-900 dark:text-ink-100 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-ink-500" />
+                  Document preview
+                </h3>
+                <a
+                  href={ipfsUrl(credential.cid)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-brand-600 hover:underline dark:text-brand-400 inline-flex items-center gap-1"
+                >
+                  Open on IPFS
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+              {previewKind === "image" && (
+                <img
+                  src={ipfsUrl(credential.cid)}
+                  alt={credential.title}
+                  className="w-full max-h-[600px] object-contain rounded-lg bg-ink-50 dark:bg-ink-900"
+                />
+              )}
+              {previewKind === "pdf" && (
+                <iframe
+                  src={ipfsUrl(credential.cid)}
+                  title={credential.title}
+                  className="w-full h-[640px] rounded-lg border border-ink-200 dark:border-ink-800"
+                />
+              )}
+              {previewKind === "other" && (
+                <div className="flex items-center gap-3 text-sm text-ink-500 dark:text-ink-400 rounded-lg border border-dashed border-ink-200 dark:border-ink-800 px-4 py-6">
+                  <FileText className="h-5 w-5" />
+                  <span>
+                    Preview unavailable for this file type — open on IPFS to
+                    view it.
+                  </span>
+                </div>
+              )}
+              {previewKind === null && (
+                <div className="rounded-lg bg-ink-50 dark:bg-ink-900 h-40 animate-pulse" />
+              )}
+            </Card>
+          )}
+        </div>
+
+        {/* Right: verification checks */}
+        <div className="space-y-5">
+          <Card>
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-ink-900 dark:text-ink-100">
+              <ShieldCheck className="h-4 w-4 text-brand-600 dark:text-brand-400" />
+              Verification checks
+            </h3>
+            <ul className="mt-3 divide-y divide-ink-100 dark:divide-ink-800">
+              <CheckRow
+                ok
+                label="On-chain record exists"
+                detail={`Credential #${credential.index} found on the smart contract.`}
+              />
+              <CheckRow
+                ok={!credential.revoked}
+                label={
+                  credential.revoked
+                    ? "Credential is revoked"
+                    : "Credential is active"
+                }
+                detail={
+                  credential.revoked
+                    ? "Issuer has marked it revoked on-chain."
+                    : "No revocation has been recorded."
+                }
+              />
+              <CheckRow
+                ok={issuerKnown}
+                label={
+                  issuerKnown
+                    ? `Issuer registered: ${issuer.name}`
+                    : "Issuer not in registry"
+                }
+                detail={
+                  issuerKnown
+                    ? "The wallet that signed this credential is a known institution."
+                    : "The issuing wallet has not registered an institutional profile. Verify the wallet identity through other means."
+                }
+              />
+              <CheckRow
+                ok={issuerAccredited}
+                label={
+                  issuerAccredited
+                    ? "Issuer is accredited"
+                    : "Issuer not accredited"
+                }
+                detail={
+                  issuerAccredited
+                    ? `Accreditations: ${(issuer.accreditations || []).join(", ") || "—"}`
+                    : "No accreditation has been recorded for this issuer in the registry."
+                }
+              />
+              <CheckRow
+                ok={!!credential.cid}
+                label={
+                  credential.cid
+                    ? "Document hash anchored"
+                    : "Document missing"
+                }
+                detail={
+                  credential.cid
+                    ? "The keccak-256 hash of the IPFS CID is stored on-chain."
+                    : "No IPFS document was attached at issuance."
+                }
+              />
+            </ul>
+            {(!issuerKnown || !issuerAccredited) && (
+              <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                <span>
+                  Some checks failed. The credential may still be authentic — but
+                  you should independently confirm the issuing wallet.
+                </span>
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <h3 className="text-sm font-semibold text-ink-900 dark:text-ink-100">
+              About this verification
+            </h3>
+            <p className="mt-2 text-xs text-ink-600 dark:text-ink-400 leading-relaxed">
+              Verification reads directly from the public blockchain — no Scholar
+              Ledger account needed. Anyone with this link or QR code can
+              independently re-verify the credential.
+            </p>
+            <Link
+              to={`/profile/${address}`}
+              className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
+            >
+              View {shortAddr(address)}'s full profile
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </Card>
+        </div>
+      </div>
 
       {!isValid && (
         <Alert tone="danger" title="What does revoked mean?">
