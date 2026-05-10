@@ -1,11 +1,22 @@
 # Node dependencies
 node_modules/
 
-# Environment variables & secrets
+# Environment variables & secrets — every variant, anywhere in the tree
 .env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
 
 # Truffle build artifacts
 build/
+blockchain/build/
 
 # Lock files (optional but clean)
 package-lock.json
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/

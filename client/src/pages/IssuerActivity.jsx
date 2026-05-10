@@ -20,7 +20,9 @@ import EmptyState from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
-const LOOKBACK_BLOCKS = 50000;
+// Public Sepolia RPCs (Infura/Alchemy free tier) cap eth_getLogs at ~10k blocks
+// per call. 9_000 stays under that limit and covers ~30 hours of Sepolia activity.
+const LOOKBACK_BLOCKS = 9_000;
 
 const formatDate = (ts) => {
   if (!ts) return "—";
