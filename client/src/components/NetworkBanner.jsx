@@ -28,7 +28,11 @@ function NetworkBanner() {
   };
 
   return (
-    <div className="border-b border-amber-300 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-950/40">
+    <div
+      role="alert"
+      aria-live="polite"
+      className="border-b border-amber-300 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-950/40"
+    >
       <div className="mx-auto max-w-7xl flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 py-2.5">
         <div className="flex items-start gap-2 text-sm text-amber-900 dark:text-amber-200">
           <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />

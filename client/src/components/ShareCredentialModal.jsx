@@ -10,10 +10,12 @@ import {
   Twitter,
 } from "lucide-react";
 import Button from "./ui/Button";
+import useFocusTrap from "../utils/useFocusTrap";
 
 function ShareCredentialModal({ open, onClose, verifyUrl, title, issuerName }) {
   const [copied, setCopied] = useState(false);
   const qrWrapRef = useRef(null);
+  const trapRef = useFocusTrap(open);
 
   useEffect(() => {
     if (!open) return;
@@ -81,7 +83,9 @@ function ShareCredentialModal({ open, onClose, verifyUrl, title, issuerName }) {
       aria-label="Share credential"
     >
       <div
-        className="relative w-full max-w-md rounded-xl border border-ink-200 bg-white dark:border-ink-800 dark:bg-ink-900 shadow-elevated"
+        ref={trapRef}
+        tabIndex={-1}
+        className="relative w-full max-w-md rounded-xl border border-ink-200 bg-white dark:border-ink-800 dark:bg-ink-900 shadow-elevated focus:outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between p-5 border-b border-ink-200 dark:border-ink-800">

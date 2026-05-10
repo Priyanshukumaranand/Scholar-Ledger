@@ -82,9 +82,19 @@ function App() {
         <WalletProvider>
           <ToastProvider>
             <div className="min-h-screen flex flex-col">
+              <a
+                href="#main-content"
+                className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:rounded-lg focus:bg-brand-600 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white focus:shadow-elevated"
+              >
+                Skip to main content
+              </a>
               <Navbar />
               <NetworkBanner />
-              <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
+              <main
+                id="main-content"
+                tabIndex={-1}
+                className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8 animate-fade-in focus:outline-none"
+              >
                 <Routes>
                   <Route path="/" element={<Home />} />
                   <Route path="/verify" element={<VerifyManual />} />

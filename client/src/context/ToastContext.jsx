@@ -97,6 +97,8 @@ export function ToastProvider({ children }) {
         className="pointer-events-none fixed top-4 right-4 z-50 flex w-full max-w-sm flex-col gap-2"
         role="region"
         aria-label="Notifications"
+        aria-live="polite"
+        aria-atomic="false"
       >
         {toasts.map((t) => {
           const config = TONE_STYLES[t.tone] || TONE_STYLES.info;

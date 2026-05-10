@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import Button from "./Button";
+import useFocusTrap from "../../utils/useFocusTrap";
 
 function ConfirmDialog({
   open,
@@ -13,6 +14,8 @@ function ConfirmDialog({
   tone = "danger",
   busy = false,
 }) {
+  const trapRef = useFocusTrap(open);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => {
@@ -42,7 +45,11 @@ function ConfirmDialog({
         className="absolute inset-0 bg-ink-900/60 backdrop-blur-sm"
         onClick={() => !busy && onCancel()}
       />
-      <div className="relative w-full max-w-md rounded-2xl border border-ink-200 bg-white p-6 shadow-elevated dark:border-ink-800 dark:bg-ink-900 animate-slide-down">
+      <div
+        ref={trapRef}
+        tabIndex={-1}
+        className="relative w-full max-w-md rounded-2xl border border-ink-200 bg-white p-6 shadow-elevated dark:border-ink-800 dark:bg-ink-900 animate-slide-down focus:outline-none"
+      >
         <button
           onClick={onCancel}
           disabled={busy}
