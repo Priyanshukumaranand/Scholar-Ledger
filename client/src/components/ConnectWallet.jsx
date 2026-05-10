@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Wallet, Copy, Check, ExternalLink, Building2, User, Shield } from "lucide-react";
+import { Wallet, Copy, Check, ExternalLink, Building2, User, Shield, LogOut } from "lucide-react";
 import { useWallet } from "../context/WalletContext";
 import { useToast } from "../context/ToastContext";
 import { shortAddr, ipfsUrl, resolveIssuer, resolveStudent } from "../utils/identity";
@@ -9,7 +9,7 @@ import Button from "./ui/Button";
 import Badge from "./ui/Badge";
 
 function ConnectWallet() {
-  const { account, isAdmin, canIssue, isSuperAdmin, connectWallet } = useWallet();
+  const { account, isAdmin, canIssue, isSuperAdmin, connectWallet, disconnect, isReady } = useWallet();
   const { pushToast } = useToast();
   const [copied, setCopied] = useState(false);
   const [identity, setIdentity] = useState(null);
@@ -96,6 +96,7 @@ function ConnectWallet() {
   };
 
   if (!account) {
+    const restoring = !isReady;
     return (
       <div className="rounded-xl border border-ink-200 bg-white p-5 dark:border-ink-800 dark:bg-ink-900 shadow-card">
         <div className="flex items-center gap-3 flex-wrap">
@@ -104,15 +105,17 @@ function ConnectWallet() {
           </div>
           <div className="flex-1 min-w-[200px]">
             <p className="text-sm font-semibold text-ink-900 dark:text-ink-100">
-              Connect your wallet
+              {restoring ? "Restoring session…" : "Connect your wallet"}
             </p>
             <p className="text-xs text-ink-500 dark:text-ink-400 mt-0.5">
-              Required to view, issue, or manage your credentials
+              {restoring
+                ? "Checking for a previously connected wallet"
+                : "Required to view, issue, or manage your credentials"}
             </p>
           </div>
-          <Button onClick={handleConnect} disabled={connecting}>
+          <Button onClick={handleConnect} disabled={connecting || restoring}>
             <Wallet className="h-4 w-4" />
-            {connecting ? "Connecting…" : "Connect"}
+            {connecting ? "Connecting…" : restoring ? "Please wait…" : "Connect"}
           </Button>
         </div>
       </div>
@@ -202,6 +205,14 @@ function ConnectWallet() {
             )}
           </div>
         </div>
+        <button
+          onClick={disconnect}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-ink-500 hover:text-ink-900 hover:bg-ink-100 dark:text-ink-400 dark:hover:text-ink-100 dark:hover:bg-ink-800 transition-colors"
+          title="Disconnect wallet from this site"
+        >
+          <LogOut className="h-3.5 w-3.5" />
+          Disconnect
+        </button>
       </div>
     </div>
   );

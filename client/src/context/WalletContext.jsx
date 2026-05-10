@@ -4,6 +4,8 @@ import { EXPECTED_CHAIN_ID, switchToExpectedChain } from "../utils/network";
 
 const WalletContext = createContext(null);
 
+const DISCONNECT_KEY = "scholar-ledger:wallet-disconnected";
+
 const initialRoleState = {
   isAdmin: false,
   canIssue: false,
@@ -24,6 +26,7 @@ export function WalletProvider({ children }) {
   const [account, setAccount] = useState("");
   const [roleState, setRoleState] = useState(initialRoleState);
   const [chainId, setChainId] = useState(null);
+  const [isReady, setIsReady] = useState(false);
 
   const resolveRoles = useCallback(async (addr) => {
     if (!addr) {
@@ -64,8 +67,23 @@ export function WalletProvider({ children }) {
       method: "eth_requestAccounts",
     });
     const addr = accounts[0];
+    try {
+      window.localStorage.removeItem(DISCONNECT_KEY);
+    } catch {
+      // ignore
+    }
     setAccount(addr);
     await resolveRoles(addr);
+  };
+
+  const disconnect = () => {
+    try {
+      window.localStorage.setItem(DISCONNECT_KEY, "1");
+    } catch {
+      // ignore
+    }
+    setAccount("");
+    setRoleState(initialRoleState);
   };
 
   const switchNetwork = async () => {
@@ -73,21 +91,33 @@ export function WalletProvider({ children }) {
   };
 
   useEffect(() => {
-    if (!window.ethereum) return;
+    if (!window.ethereum) {
+      setIsReady(true);
+      return;
+    }
 
     window.ethereum
       .request({ method: "eth_chainId" })
       .then((id) => setChainId(parseChainId(id)))
       .catch(() => {});
 
+    let userDisconnected = false;
+    try {
+      userDisconnected = window.localStorage.getItem(DISCONNECT_KEY) === "1";
+    } catch {
+      // ignore
+    }
+
     window.ethereum
       .request({ method: "eth_accounts" })
       .then(async (accounts) => {
-        if (accounts.length > 0) {
+        if (accounts.length > 0 && !userDisconnected) {
           setAccount(accounts[0]);
           await resolveRoles(accounts[0]);
         }
-      });
+      })
+      .catch(() => {})
+      .finally(() => setIsReady(true));
 
     const handleAccountsChanged = async (accounts) => {
       if (accounts.length === 0) {
@@ -119,8 +149,10 @@ export function WalletProvider({ children }) {
     chainId,
     expectedChainId: EXPECTED_CHAIN_ID,
     isWrongNetwork,
+    isReady,
     ...roleState,
     connectWallet,
+    disconnect,
     switchNetwork,
     refreshRoles: () => resolveRoles(account),
   };
