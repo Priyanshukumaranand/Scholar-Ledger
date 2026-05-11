@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   AlertTriangle,
   FileText,
+  Award,
 } from "lucide-react";
 import { getReadOnlyContract } from "../utils/readOnlyContract";
 import { ipfsUrl, shortAddr, resolveIssuer } from "../utils/identity";
@@ -395,19 +396,6 @@ function PublicVerify() {
                 }
               />
               <CheckRow
-                ok={issuerAccredited}
-                label={
-                  issuerAccredited
-                    ? "Issuer is accredited"
-                    : "Issuer not accredited"
-                }
-                detail={
-                  issuerAccredited
-                    ? `Accreditations: ${(issuer.accreditations || []).join(", ") || "—"}`
-                    : "No accreditation has been recorded for this issuer in the registry."
-                }
-              />
-              <CheckRow
                 ok={!!credential.cid}
                 label={
                   credential.cid
@@ -421,12 +409,37 @@ function PublicVerify() {
                 }
               />
             </ul>
-            {(!issuerKnown || !issuerAccredited) && (
+
+            <div className="mt-4 pt-4 border-t border-ink-100 dark:border-ink-800">
+              <div className="text-[11px] font-medium uppercase tracking-wider text-ink-500 dark:text-ink-400">
+                Third-party accreditation
+              </div>
+              {issuerAccredited ? (
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                    <Award className="h-3 w-3" />
+                    Accredited
+                  </span>
+                  <span className="text-xs text-ink-600 dark:text-ink-400">
+                    {(issuer.accreditations || []).join(", ") || "—"}
+                  </span>
+                </div>
+              ) : (
+                <p className="mt-2 text-xs text-ink-500 dark:text-ink-400 leading-relaxed">
+                  No external accreditation recorded. This is optional and does
+                  not affect authenticity — the credential is still valid based
+                  on the on-chain checks above.
+                </p>
+              )}
+            </div>
+
+            {!issuerKnown && (
               <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
                 <AlertTriangle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
                 <span>
-                  Some checks failed. The credential may still be authentic — but
-                  you should independently confirm the issuing wallet.
+                  The issuing wallet has not registered an institutional
+                  profile. The credential may still be authentic — independently
+                  confirm the issuing wallet through other means.
                 </span>
               </div>
             )}

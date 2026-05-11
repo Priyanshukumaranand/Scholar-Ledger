@@ -10,9 +10,10 @@ import {
   Github,
   Twitter,
   Mail,
+  Globe,
 } from "lucide-react";
 import { getReadOnlyContract } from "../utils/readOnlyContract";
-import { resolveStudent, ipfsUrl } from "../utils/identity";
+import { resolveStudent, resolveIssuer, ipfsUrl } from "../utils/identity";
 import { humanizeError } from "../utils/errors";
 import IssuerBadge from "../components/IssuerBadge";
 import Card from "../components/ui/Card";
@@ -54,6 +55,7 @@ function PublicProfile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [profile, setProfile] = useState(null);
+  const [issuer, setIssuer] = useState(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -64,13 +66,14 @@ function PublicProfile() {
       try {
         const contract = getReadOnlyContract("scholarLedger");
         const count = Number(await contract.getCredentialCount(address));
-        const [creds, p] = await Promise.all([
+        const [creds, studentProfile, issuerProfile] = await Promise.all([
           Promise.all(
             Array.from({ length: count }, (_, i) =>
               contract.getCredential(address, i)
             )
           ),
           resolveStudent(address),
+          resolveIssuer(address),
         ]);
         const records = creds.map((cred, i) => ({
           index: i,
@@ -87,7 +90,8 @@ function PublicProfile() {
         }));
         if (!alive) return;
         setCredentials(records);
-        setProfile(p);
+        setProfile(studentProfile);
+        setIssuer(issuerProfile);
       } catch (err) {
         if (!alive) return;
         setError(humanizeError(err, "Could not load profile."));
@@ -116,6 +120,37 @@ function PublicProfile() {
   const revoked = credentials.filter((c) => c.revoked);
   const socials = profile?.socials || {};
 
+  // Resolve persona, picking the most-specific identity we have for this wallet.
+  const isInstitution = !!issuer?.exists;
+  const isStudent = !isInstitution && !!profile?.name;
+  const persona = isInstitution ? "institution" : isStudent ? "student" : "unknown";
+
+  const addrInitials = address ? address.slice(2, 4).toUpperCase() : "??";
+
+  const display = isInstitution
+    ? {
+        eyebrow: "Issuing Institution",
+        title: issuer.name || issuer.shortName || "Registered Institution",
+        bio: [issuer.country, issuer.websiteUrl].filter(Boolean).join(" · "),
+        photoSrc: issuer.logoCID ? ipfsUrl(issuer.logoCID) : null,
+        initials: (issuer.name || issuer.shortName || addrInitials).slice(0, 2).toUpperCase(),
+      }
+    : isStudent
+    ? {
+        eyebrow: "Student",
+        title: profile.name,
+        bio: profile.bio || "",
+        photoSrc: profile.photoCID ? ipfsUrl(profile.photoCID) : null,
+        initials: (profile.name || addrInitials).slice(0, 2).toUpperCase(),
+      }
+    : {
+        eyebrow: "Public Wallet",
+        title: "Credential Profile",
+        bio: "",
+        photoSrc: null,
+        initials: addrInitials,
+      };
+
   if (loading) {
     return (
       <div className="text-center py-20">
@@ -135,30 +170,33 @@ function PublicProfile() {
         <div className="absolute top-0 right-0 -mt-16 -mr-16 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
 
         <div className="relative flex flex-wrap items-center gap-6">
-          {profile?.photoCID ? (
+          {display.photoSrc ? (
             <img
-              src={ipfsUrl(profile.photoCID)}
-              alt={profile?.name || "Profile"}
-              className="h-24 w-24 rounded-2xl object-cover border-2 border-white/20 shadow-elevated"
+              src={display.photoSrc}
+              alt={display.title}
+              className="h-24 w-24 rounded-2xl object-cover border-2 border-white/20 shadow-elevated bg-white/10"
               onError={(e) => {
                 e.currentTarget.style.display = "none";
               }}
             />
           ) : (
             <div className="h-24 w-24 rounded-2xl bg-white/15 border-2 border-white/20 flex items-center justify-center text-3xl font-bold uppercase backdrop-blur">
-              {(profile?.name || "?").slice(0, 2)}
+              {display.initials}
             </div>
           )}
           <div className="flex-1 min-w-[260px]">
-            <h1 className="text-2xl sm:text-4xl font-bold tracking-tighter">
-              {profile?.name || "Student Credential Profile"}
+            <div className="text-[10px] sm:text-xs uppercase tracking-widest opacity-80">
+              {display.eyebrow}
+            </div>
+            <h1 className="mt-1 text-2xl sm:text-4xl font-bold tracking-tighter">
+              {display.title}
             </h1>
             <p className="mt-1.5 text-xs sm:text-sm font-mono opacity-75 break-all">
               {address}
             </p>
-            {profile?.bio && (
+            {display.bio && (
               <p className="mt-3 text-sm opacity-90 max-w-xl leading-relaxed">
-                {profile.bio}
+                {display.bio}
               </p>
             )}
             <div className="mt-5 flex flex-wrap gap-2 items-center">
@@ -173,7 +211,18 @@ function PublicProfile() {
                 )}
                 {copied ? "Copied" : "Copy Profile Link"}
               </button>
-              {profile?.email && (
+              {persona === "institution" && isSafeHttpUrl(issuer.websiteUrl) && (
+                <a
+                  href={issuer.websiteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                  title="Website"
+                >
+                  <Globe className="h-3.5 w-3.5" />
+                </a>
+              )}
+              {persona === "student" && profile?.email && (
                 <a
                   href={`mailto:${profile.email}`}
                   className="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
@@ -182,7 +231,7 @@ function PublicProfile() {
                   <Mail className="h-3.5 w-3.5" />
                 </a>
               )}
-              {isSafeHttpUrl(socials.linkedin) && (
+              {persona === "student" && isSafeHttpUrl(socials.linkedin) && (
                 <a
                   href={socials.linkedin}
                   target="_blank"
@@ -193,7 +242,7 @@ function PublicProfile() {
                   <Linkedin className="h-3.5 w-3.5" />
                 </a>
               )}
-              {isSafeHttpUrl(socials.github) && (
+              {persona === "student" && isSafeHttpUrl(socials.github) && (
                 <a
                   href={socials.github}
                   target="_blank"
@@ -204,7 +253,7 @@ function PublicProfile() {
                   <Github className="h-3.5 w-3.5" />
                 </a>
               )}
-              {isSafeHttpUrl(socials.twitter) && (
+              {persona === "student" && isSafeHttpUrl(socials.twitter) && (
                 <a
                   href={socials.twitter}
                   target="_blank"
@@ -228,7 +277,9 @@ function PublicProfile() {
       {!error && credentials.length === 0 && (
         <Card>
           <p className="text-center text-ink-500 dark:text-ink-400 py-8">
-            No credentials have been issued to this address yet.
+            {persona === "institution"
+              ? "This wallet is registered as an issuing institution. It hasn't received any credentials itself."
+              : "No credentials have been issued to this address yet."}
           </p>
         </Card>
       )}
