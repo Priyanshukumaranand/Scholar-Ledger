@@ -1,0 +1,55 @@
+name: Deploy Frontend to Vercel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "client/**"
+      - ".github/workflows/deploy-frontend.yml"
+
+jobs:
+  deploy:
+    name: Build & Deploy React App
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: false
+          REACT_APP_PINATA_API_KEY: ${{ secrets.REACT_APP_PINATA_API_KEY }}
+          REACT_APP_PINATA_SECRET_KEY: ${{ secrets.REACT_APP_PINATA_SECRET_KEY }}
+          REACT_APP_CONTRACT_ADDRESS: ${{ secrets.REACT_APP_CONTRACT_ADDRESS }}
+          REACT_APP_ISSUER_REGISTRY_ADDRESS: ${{ secrets.REACT_APP_ISSUER_REGISTRY_ADDRESS }}
+          REACT_APP_STUDENT_PROFILE_REGISTRY_ADDRESS: ${{ secrets.REACT_APP_STUDENT_PROFILE_REGISTRY_ADDRESS }}
+          REACT_APP_ACCREDITATION_REGISTRY_ADDRESS: ${{ secrets.REACT_APP_ACCREDITATION_REGISTRY_ADDRESS }}
+          REACT_APP_RPC_URL: ${{ secrets.REACT_APP_RPC_URL }}
+          REACT_APP_BACKEND_URL: ${{ secrets.REACT_APP_BACKEND_URL }}
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Deploy to Vercel
+        run: |
+          vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }} \
+            --yes \
+            --cwd . \
+            --scope ${{ secrets.VERCEL_ORG_ID }} \
+            build/
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

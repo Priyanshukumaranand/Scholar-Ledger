@@ -1,0 +1,43 @@
+##############################################################################
+# render.yaml — Render Infrastructure-as-Code
+# Docs: https://docs.render.com/infrastructure-as-code
+#
+# After connecting your GitHub repo to Render, this file auto-configures
+# the backend service. Fill env var values in the Render dashboard.
+##############################################################################
+
+services:
+  - type: web
+    name: scholar-ledger-backend
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      - key: HOST
+        value: 0.0.0.0
+      - key: CORS_ORIGIN
+        sync: false          # Set in Render dashboard (your Vercel frontend URL)
+      - key: RPC_URL
+        sync: false          # Set in Render dashboard (Alchemy / public Amoy RPC)
+      - key: SCHOLAR_LEDGER_ADDRESS
+        sync: false
+      - key: ISSUER_REGISTRY_ADDRESS
+        sync: false
+      - key: STUDENT_PROFILE_REGISTRY_ADDRESS
+        sync: false
+      - key: ACCREDITATION_REGISTRY_ADDRESS
+        sync: false
+      - key: IPFS_GATEWAY
+        value: https://ipfs.io/ipfs/
+      - key: RESEND_API_KEY
+        sync: false          # Optional — leave blank to disable emails
+      - key: RESEND_FROM
+        value: "Scholar Ledger <noreply@example.com>"

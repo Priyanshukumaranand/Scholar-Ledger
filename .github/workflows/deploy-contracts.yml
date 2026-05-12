@@ -1,0 +1,60 @@
+name: Deploy Smart Contracts
+
+on:
+  workflow_dispatch:
+    inputs:
+      network:
+        description: "Target network"
+        required: true
+        default: amoy
+        type: choice
+        options:
+          - amoy
+          - polygon
+
+jobs:
+  deploy:
+    name: Deploy to ${{ github.event.inputs.network }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install Truffle globally
+        run: npm install -g truffle
+
+      - name: Install blockchain dependencies
+        working-directory: blockchain
+        run: npm install @truffle/hdwallet-provider dotenv
+
+      - name: Run migrations
+        working-directory: blockchain
+        run: truffle migrate --reset --network ${{ github.event.inputs.network }}
+        env:
+          DEPLOYER_MNEMONIC: ${{ secrets.DEPLOYER_MNEMONIC }}
+          POLYGON_RPC_URL: ${{ secrets.POLYGON_RPC_URL }}
+
+      - name: Copy ABIs to client & backend
+        run: node scripts/copy-abis.js
+
+      - name: Commit updated ABIs & addresses
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add client/src/abi/ backend/abi/
+          # Only commit if there are changes
+          if git diff --cached --quiet; then
+            echo "No ABI changes to commit"
+          else
+            git commit -m "chore: update ABIs after contract deploy to ${{ github.event.inputs.network }}"
+            git push
+          fi
